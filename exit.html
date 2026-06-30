@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>退職者アンケート｜KINOWA</title>
+<style>
+  :root{
+    --green:#00A878; --green-d:#018A63; --green-l:#E6F6F0;
+    --ink:#1C2B26; --sub:#5C6B65; --line:#E2E8E4; --bg:#F6F9F7;
+    --warn:#C0563B; --card:#FFFFFF;
+    --r:14px; --maxw:680px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.7;
+    -webkit-font-smoothing:antialiased; padding-bottom:60px;
+  }
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 18px}
+
+  /* header */
+  header{
+    background:linear-gradient(135deg,var(--green) 0%,var(--green-d) 100%);
+    color:#fff; padding:34px 0 30px; margin-bottom:8px;
+  }
+  header .wrap{display:block}
+  .brand{font-size:13px; letter-spacing:.22em; font-weight:700; opacity:.92; margin-bottom:14px}
+  header h1{font-size:23px; font-weight:800; letter-spacing:.01em; line-height:1.45}
+  header p{font-size:13.5px; opacity:.94; margin-top:12px; max-width:560px}
+
+  /* progress */
+  .progress{position:sticky; top:0; z-index:20; background:var(--bg); padding:10px 0 6px; border-bottom:1px solid var(--line)}
+  .bar{height:6px; background:var(--line); border-radius:99px; overflow:hidden}
+  .bar i{display:block; height:100%; width:0; background:var(--green); border-radius:99px; transition:width .35s ease}
+  .pmeta{display:flex; justify-content:space-between; font-size:11.5px; color:var(--sub); margin-top:7px}
+
+  /* card */
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    padding:22px 20px; margin-top:16px; box-shadow:0 1px 2px rgba(20,40,30,.03);
+  }
+  .qno{display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--green-d); margin-bottom:9px; letter-spacing:.03em}
+  .qno b{display:inline-grid; place-items:center; width:22px; height:22px; background:var(--green-l); border-radius:7px; font-size:12px}
+  .q{font-size:16px; font-weight:700; margin-bottom:4px}
+  .hint{font-size:12.5px; color:var(--sub); margin-bottom:14px}
+  .req{color:var(--warn); font-size:11px; font-weight:700; margin-left:6px; vertical-align:1px}
+
+  /* choices */
+  .group{display:flex; flex-direction:column; gap:9px; margin-top:4px}
+  .opt{
+    display:flex; align-items:flex-start; gap:11px; padding:13px 14px;
+    border:1.5px solid var(--line); border-radius:11px; cursor:pointer;
+    transition:border-color .15s, background .15s; background:#fff;
+  }
+  .opt:hover{border-color:#BBD9CC}
+  .opt input{margin-top:3px; accent-color:var(--green); width:17px; height:17px; flex:none}
+  .opt span{font-size:14.5px}
+  .opt.sel{border-color:var(--green); background:var(--green-l)}
+  .cat-label{font-size:11px; font-weight:700; color:var(--sub); letter-spacing:.08em; margin:14px 0 7px; padding-left:2px}
+  .cat-label:first-child{margin-top:2px}
+
+  /* grid select pills */
+  .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px}
+  .pill{
+    padding:10px 15px; border:1.5px solid var(--line); border-radius:99px;
+    font-size:13.5px; cursor:pointer; background:#fff; transition:all .15s; user-select:none;
+  }
+  .pill:hover{border-color:#BBD9CC}
+  .pill.sel{background:var(--green); border-color:var(--green); color:#fff; font-weight:700}
+
+  /* text inputs */
+  textarea,input[type=text],select{
+    width:100%; font-family:inherit; font-size:14.5px; color:var(--ink);
+    border:1.5px solid var(--line); border-radius:11px; padding:12px 13px;
+    background:#fff; resize:vertical; line-height:1.6;
+  }
+  textarea:focus,input:focus,select:focus{outline:none; border-color:var(--green)}
+  textarea{min-height:84px}
+  select{appearance:none; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6B65' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 14px center; padding-right:36px}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:11px}
+  .lab{font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:6px; display:block}
+  .field+.field{margin-top:14px}
+
+  /* submit */
+  .actions{margin-top:24px}
+  .submit{
+    width:100%; background:var(--green); color:#fff; border:none; border-radius:12px;
+    padding:16px; font-size:15.5px; font-weight:800; font-family:inherit; cursor:pointer;
+    letter-spacing:.04em; transition:background .15s;
+  }
+  .submit:hover{background:var(--green-d)}
+  .submit:disabled{opacity:.55; cursor:not-allowed}
+  .note{font-size:11.5px; color:var(--sub); text-align:center; margin-top:14px; line-height:1.6}
+
+  /* thanks */
+  .thanks{display:none; text-align:center; padding:60px 24px}
+  .thanks.show{display:block}
+  .thanks .ic{width:64px; height:64px; background:var(--green-l); border-radius:50%; display:grid; place-items:center; margin:0 auto 20px}
+  .thanks .ic svg{width:32px; height:32px; stroke:var(--green); fill:none; stroke-width:2.5}
+  .thanks h2{font-size:21px; font-weight:800; margin-bottom:12px}
+  .thanks p{font-size:14px; color:var(--sub); max-width:420px; margin:0 auto}
+
+  .errmsg{color:var(--warn); font-size:12.5px; margin-top:10px; display:none; font-weight:600}
+  .errmsg.show{display:block}
+
+  @media(max-width:480px){
+    header h1{font-size:20px}
+    .row2{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">KINOWA GROUP</div>
+    <h1>退職にあたってのアンケート</h1>
+    <p>このアンケートは、今後の職場改善・人材育成の参考とさせていただく目的で実施しています。評価や手続きには一切影響しません。できるだけ率直なお気持ちをお聞かせください。所要時間は5分ほどです。</p>
+  </div>
+</header>
+
+<div class="progress">
+  <div class="wrap">
+    <div class="bar"><i id="pbar"></i></div>
+    <div class="pmeta"><span>入力状況</span><span id="pct">0% 完了</span></div>
+  </div>
+</div>
+
+<div class="wrap" id="formArea">
+
+  <!-- 基本情報 -->
+  <div class="card">
+    <div class="qno"><b>0</b>基本情報</div>
+    <div class="q">あなたについて教えてください<span class="req">必須</span></div>
+    <div class="hint">集計のための情報です。個人を特定して不利益に扱うことはありません。</div>
+    <div class="field">
+      <span class="lab">所属していた店舗</span>
+      <select id="store" data-track>
+        <option value="">選択してください</option>
+        <option>くりの木薬局</option>
+        <option>お茶の木薬局</option>
+        <option>そらの木薬局</option>
+        <option>ケアの木薬局</option>
+        <option>ほしの木薬局</option>
+        <option>はれの木薬局</option>
+        <option>にじの木薬局</option>
+        <option>ゆずの木薬局</option>
+        <option>さくらの木薬局</option>
+        <option>サン薬局</option>
+        <option>本部・管理部門</option>
+        <option>その他</option>
+      </select>
+    </div>
+    <div class="row2" style="margin-top:14px">
+      <div class="field">
+        <span class="lab">職種</span>
+        <select id="role" data-track>
+          <option value="">選択</option>
+          <option>薬剤師</option>
+          <option>管理薬剤師</option>
+          <option>医療事務・調剤事務</option>
+          <option>在宅・施設担当</option>
+          <option>営業</option>
+          <option>その他</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="lab">勤務期間</span>
+        <select id="tenure" data-track>
+          <option value="">選択</option>
+          <option>1ヶ月未満</option>
+          <option>1〜3ヶ月</option>
+          <option>3〜6ヶ月</option>
+          <option>6ヶ月〜1年</option>
+          <option>1〜3年</option>
+          <option>3年以上</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="lab">退職年月</span>
+        <input id="leftYM" type="month" data-track>
+      </div>
+    </div>
+  </div>
+
+  <!-- Q1 退職理由（複数） -->
+  <div class="card">
+    <div class="qno"><b>1</b>退職理由</div>
+    <div class="q">退職を決めた理由として当てはまるものを、すべて選んでください<span class="req">必須</span></div>
+    <div class="hint">複数選択できます。</div>
+
+    <div class="cat-label">業務内容</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="仕事が合わなかった／向いていないと感じた"><span>仕事が合わなかった／向いていないと感じた</span></label>
+      <label class="opt"><input type="checkbox" value="業務量が多すぎた・負荷が高すぎた"><span>業務量が多すぎた・負荷が高すぎた</span></label>
+    </div>
+    <div class="cat-label">人間関係</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="上司・先輩との人間関係に悩んだ"><span>上司・先輩との人間関係に悩んだ</span></label>
+      <label class="opt"><input type="checkbox" value="同僚とうまくいかなかった／孤立感があった"><span>同僚とうまくいかなかった／孤立感があった</span></label>
+    </div>
+    <div class="cat-label">労働条件</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="シフト・勤務時間が希望と合わなかった"><span>シフト・勤務時間が希望と合わなかった</span></label>
+      <label class="opt"><input type="checkbox" value="給与や待遇に不満があった"><span>給与や待遇に不満があった</span></label>
+    </div>
+    <div class="cat-label">教育・サポート</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="教育・指導体制が不十分に感じた"><span>教育・指導体制が不十分に感じた</span></label>
+    </div>
+    <div class="cat-label">将来の展望</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="成長やキャリアの見通しが持てなかった"><span>成長やキャリアの見通しが持てなかった</span></label>
+    </div>
+    <div class="cat-label">私的理由</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="学業や家庭の事情によるため"><span>学業や家庭の事情によるため</span></label>
+      <label class="opt"><input type="checkbox" value="他にやりたいこと・転職したい仕事ができた"><span>他にやりたいこと・転職したい仕事ができた</span></label>
+    </div>
+    <div class="cat-label">その他</div>
+    <div class="group" data-cat="reasons">
+      <label class="opt"><input type="checkbox" value="その他"><span>その他（下の自由記入欄へ）</span></label>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <textarea id="reasonOther" placeholder="その他の理由・補足があればご記入ください"></textarea>
+    </div>
+  </div>
+
+  <!-- Q2 最大の理由 -->
+  <div class="card">
+    <div class="qno"><b>2</b>最も大きな理由</div>
+    <div class="q">もっとも大きな退職理由を1つ選ぶとしたら、どれですか<span class="req">必須</span></div>
+    <div class="hint">上で選んだ中から、最も影響が大きかったものを選んでください。</div>
+    <select id="mainReason" data-track>
+      <option value="">選択してください</option>
+      <option>仕事が合わなかった／向いていない</option>
+      <option>業務量が多すぎた・負荷が高すぎた</option>
+      <option>上司・先輩との人間関係</option>
+      <option>同僚との関係／孤立感</option>
+      <option>シフト・勤務時間</option>
+      <option>給与や待遇</option>
+      <option>教育・指導体制</option>
+      <option>キャリアの見通し</option>
+      <option>学業・家庭の事情</option>
+      <option>他にやりたいこと・転職</option>
+      <option>その他</option>
+    </select>
+  </div>
+
+  <!-- Q3 つらかったこと -->
+  <div class="card">
+    <div class="qno"><b>3</b>在職中の悩み</div>
+    <div class="q">在職中、特につらかったこと・困っていたことがあれば教えてください</div>
+    <div class="hint">例：人間関係の悩み、教え方、仕事の覚えにくさ、体力的な負担 など</div>
+    <textarea id="hardship" placeholder="自由にご記入ください"></textarea>
+  </div>
+
+  <!-- Q4 続けたい気持ち -->
+  <div class="card">
+    <div class="qno"><b>4</b>続けたい気持ち</div>
+    <div class="q">続けたい気持ちはありましたか<span class="req">必須</span></div>
+    <div class="group" data-single="wanted">
+      <label class="opt"><input type="radio" name="wanted" value="はい（でも辞めざるを得なかった）"><span>はい（でも辞めざるを得なかった）</span></label>
+      <label class="opt"><input type="radio" name="wanted" value="いいえ（早く辞めたいと思っていた）"><span>いいえ（早く辞めたいと思っていた）</span></label>
+      <label class="opt"><input type="radio" name="wanted" value="どちらともいえない"><span>どちらともいえない</span></label>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <textarea id="wantedWhy" placeholder="理由や背景があればご記入ください"></textarea>
+    </div>
+  </div>
+
+  <!-- Q5 改善で続けたか -->
+  <div class="card">
+    <div class="qno"><b>5</b>改善の可能性</div>
+    <div class="q">もし改善されていれば、続けていた可能性はありますか<span class="req">必須</span></div>
+    <div class="pills" data-single="couldStay">
+      <div class="pill" data-val="はい">はい</div>
+      <div class="pill" data-val="いいえ">いいえ</div>
+      <div class="pill" data-val="わからない">わからない</div>
+    </div>
+    <div class="field" style="margin-top:16px">
+      <span class="lab">改善してほしかった点</span>
+      <textarea id="improve" placeholder="どんな点が改善されていれば、続けられたと思いますか"></textarea>
+    </div>
+  </div>
+
+  <!-- Q6 よかった点 -->
+  <div class="card">
+    <div class="qno"><b>6</b>よかった点</div>
+    <div class="q">在籍中によかったと思う点があれば教えてください</div>
+    <div class="hint">職場の良かったところを、これからの改善のために残させてください。</div>
+    <textarea id="good" placeholder="自由にご記入ください"></textarea>
+  </div>
+
+  <!-- Q7 最後に -->
+  <div class="card">
+    <div class="qno"><b>7</b>最後に</div>
+    <div class="q">最後に一言、ご意見・ご要望があればお願いします</div>
+    <textarea id="freeLast" placeholder="自由にご記入ください"></textarea>
+    <div class="field" style="margin-top:14px">
+      <span class="lab">お名前（任意・無記名でも構いません）</span>
+      <input type="text" id="name" placeholder="例：山田 太郎">
+    </div>
+  </div>
+
+  <div class="actions">
+    <div class="errmsg" id="err">未入力の必須項目があります。ご確認ください。</div>
+    <button class="submit" id="submitBtn">回答を送信する</button>
+    <p class="note">送信後の修正はできません。内容をご確認のうえ送信してください。<br>ご協力ありがとうございました。</p>
+  </div>
+</div>
+
+<!-- thanks -->
+<div class="wrap">
+  <div class="thanks" id="thanks">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div>
+    <h2>回答を受け付けました</h2>
+    <p>率直なお気持ちをお聞かせいただき、ありがとうございました。いただいた声は、より働きやすい職場づくりのために大切に活用させていただきます。</p>
+  </div>
+</div>
+
+<script>
+// ===== 設定：KINOWA HR本体GASのデプロイURL(末尾 /exec) =====
+const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx8yH08UMGPYv-iaJmiHmHNXGzJvgX4BLqSblwuc2CqUi3UMVsj1JUqllyNGCfQqUKo8g/exec";
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+// ===== URLからアンケートトークンを取得（?exit=xxxx） =====
+const EXIT_TOKEN = new URLSearchParams(location.search).get('exit') || '';
+
+// GAS本体へのPOST（本体HTMLと同じ呼び出し方式）
+async function gas(action, payload){
+  const res = await fetch(GAS_ENDPOINT, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({action, payload})
+  });
+  return res.json();
+}
+
+// 起動時：トークンの有効性を確認。無効ならフォームを止めて案内を出す
+async function initToken(){
+  if(!GAS_ENDPOINT) return; // 未設定時はデモ動作のまま
+  if(!EXIT_TOKEN){
+    blockForm('このアンケートは、会社から届いた専用リンクからお進みください。');
+    return;
+  }
+  try{
+    const r = await gas('exitMeta', {token: EXIT_TOKEN});
+    if(!r.ok){ blockForm(r.error || 'このリンクは無効か、期限切れです。'); return; }
+    // 店舗の初期選択（任意）。回答者が変更できるよう selected にするだけ
+    if(r.store){
+      const sel = $('#store');
+      [...sel.options].forEach(o=>{ if(o.value===r.store) o.selected=true; });
+      updateProgress();
+    }
+  }catch(e){
+    // 通信失敗時はフォームは出すが、送信時に再確認される
+  }
+}
+function blockForm(msg){
+  $('#formArea').style.display='none';
+  document.querySelector('.progress').style.display='none';
+  const t=$('#thanks');
+  t.querySelector('h2').textContent='アンケートを開けませんでした';
+  t.querySelector('p').textContent=msg;
+  t.querySelector('.ic').style.background='var(--coral-l,#FFF0ED)';
+  t.classList.add('show');
+}
+
+// チェックボックス／オプションの選択スタイル
+$$('.opt input').forEach(inp=>{
+  inp.addEventListener('change', ()=>{
+    if(inp.type==='radio'){
+      inp.closest('.group').querySelectorAll('.opt').forEach(o=>o.classList.remove('sel'));
+    }
+    inp.closest('.opt').classList.toggle('sel', inp.checked);
+    updateProgress();
+  });
+});
+
+// pills（単一選択）
+$$('.pills').forEach(box=>{
+  box.addEventListener('click', e=>{
+    const p = e.target.closest('.pill'); if(!p) return;
+    box.querySelectorAll('.pill').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel');
+    box.dataset.value = p.dataset.val;
+    updateProgress();
+  });
+});
+
+// select / textarea の進捗
+$$('[data-track]').forEach(el=> el.addEventListener('change', updateProgress));
+
+// 進捗計算（必須項目ベース）
+function requiredState(){
+  return {
+    store: !!$('#store').value,
+    role: !!$('#role').value,
+    tenure: !!$('#tenure').value,
+    reasons: $$('.group[data-cat=reasons] input:checked').length>0,
+    mainReason: !!$('#mainReason').value,
+    wanted: !!$('input[name=wanted]:checked'),
+    couldStay: !!$('.pills[data-single=couldStay]').dataset.value
+  };
+}
+function updateProgress(){
+  const st = requiredState();
+  const keys = Object.keys(st);
+  const done = keys.filter(k=>st[k]).length;
+  const pct = Math.round(done/keys.length*100);
+  $('#pbar').style.width = pct+'%';
+  $('#pct').textContent = pct+'% 完了';
+}
+
+// 送信
+$('#submitBtn').addEventListener('click', async ()=>{
+  const st = requiredState();
+  if(!Object.values(st).every(Boolean)){
+    $('#err').classList.add('show');
+    window.scrollTo({top:0, behavior:'smooth'});
+    return;
+  }
+  $('#err').classList.remove('show');
+
+  const data = {
+    timestamp: new Date().toISOString(),
+    store: $('#store').value,
+    role: $('#role').value,
+    tenure: $('#tenure').value,
+    leftYM: $('#leftYM').value,
+    reasons: $$('.group[data-cat=reasons] input:checked').map(i=>i.value),
+    reasonOther: $('#reasonOther').value.trim(),
+    mainReason: $('#mainReason').value,
+    hardship: $('#hardship').value.trim(),
+    wanted: (document.querySelector('input[name=wanted]:checked')||{}).value||'',
+    wantedWhy: $('#wantedWhy').value.trim(),
+    couldStay: $('.pills[data-single=couldStay]').dataset.value||'',
+    improve: $('#improve').value.trim(),
+    good: $('#good').value.trim(),
+    freeLast: $('#freeLast').value.trim(),
+    name: $('#name').value.trim()
+  };
+
+  const btn = $('#submitBtn');
+  btn.disabled = true; btn.textContent = '送信中…';
+
+  try{
+    if(GAS_ENDPOINT){
+      const r = await gas('submitExit', {token: EXIT_TOKEN, answers: data});
+      if(!r.ok){
+        btn.disabled=false; btn.textContent='回答を送信する';
+        $('#err').textContent = r.error || '送信できませんでした。もう一度お試しください。';
+        $('#err').classList.add('show');
+        window.scrollTo({top:0, behavior:'smooth'});
+        return;
+      }
+    } else {
+      // GAS未設定時はコンソールに出力（デモ動作）
+      console.log('送信データ（デモ）:', data);
+      await new Promise(r=>setTimeout(r,600));
+    }
+    $('#formArea').style.display='none';
+    document.querySelector('.progress').style.display='none';
+    $('#thanks').classList.add('show');
+    window.scrollTo({top:0, behavior:'smooth'});
+  }catch(err){
+    btn.disabled=false; btn.textContent='回答を送信する';
+    $('#err').textContent='送信に失敗しました。通信環境をご確認のうえ、もう一度お試しください。';
+    $('#err').classList.add('show');
+  }
+});
+
+updateProgress();
+initToken();
+</script>
+</body>
+</html>
