@@ -226,7 +226,7 @@ tbody tr:hover{background:var(--green-bg)}
       <div class="nav-group">分析</div>
       <div class="nav-item" data-page="exit" onclick="nav('exit')"><span class="ic">▦</span>退職者分析</div>
       <div class="nav-group">アカウント設定</div>
-      <div class="nav-item" data-page="self" onclick="nav('self')"><span class="ic">👤</span>マイ情報・パスワード</div>
+      <div class="nav-item" data-page="self" onclick="nav('self')"><span class="ic">👤</span>パスワード変更</div>
     </nav>
 
     <main class="main">
@@ -1195,6 +1195,26 @@ async function renderSelf(){
   // 台帳に未登録でも、本人が入力できるよう空オブジェクトで開始
   const e=(r && r.emp) ? r.emp : {email:(session&&session.email)||"", name:(session&&session.name)||""};
   selfEmp=e;
+  // 管理者は「会社としてシステムを操作する人」。通勤・口座・保険番号などの従業員向け項目は出さず、
+  // 氏名・ログインIDの確認とパスワード変更だけにする。
+  if(session && session.role==='admin'){
+    document.getElementById("selfCard").innerHTML=`
+      <div class="sec-title">アカウント情報</div>
+      <div class="frow two">
+        <div><label>氏名</label><input value="${e.name||"管理者"}" readonly style="background:#eef0ef"></div>
+        <div><label>ログインID（メール）</label><input value="${e.email||""}" readonly style="background:#eef0ef"></div>
+      </div>
+      <div class="readonly-note">管理者アカウントです。通勤手当や給与口座などの従業員向け項目はありません。</div>
+
+      <div class="sec-title" style="margin-top:26px">パスワードの変更</div>
+      <div class="frow"><label>現在のパスワード</label><input id="pc_old" type="password" autocomplete="current-password"></div>
+      <div class="frow two">
+        <div><label>新しいパスワード</label><input id="pc_new" type="password" placeholder="8文字以上・英数字" autocomplete="new-password"></div>
+        <div><label>新しいパスワード（確認）</label><input id="pc_new2" type="password" autocomplete="new-password"></div>
+      </div>
+      <div><button class="btn-sm sec" onclick="changeMyPassword()">パスワードを変更</button></div>`;
+    return;
+  }
   const sel=(id,arr,v)=>`<select id="${id}">${arr.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("")}</select>`;
   const ro=(label,v)=>`<div class="kv"><label>${label}</label><div class="v">${v||"—"}</div></div>`;
   document.getElementById("selfCard").innerHTML=`
