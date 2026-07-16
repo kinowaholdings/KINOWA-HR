@@ -622,7 +622,7 @@ tbody tr:hover{background:var(--green-bg)}
    空のままだと内蔵モックで動作します(UI確認用)。
    設定手順は別添「デプロイ手順.md」を参照。
    ============================================================ */
-const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbyN-pVs6ifTBaz-W05tmQ6vY0Lf_0IXQ7dtyhJiGB0z8x25f38Rvdv2i9a2priWgTw5pA/exec";
+const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx8yH08UMGPYv-iaJmiHmHNXGzJvgX4BLqSblwuc2CqUi3UMVsj1JUqllyNGCfQqUKo8g/exec";
 
 /* ---- グループ構成(メモリの実構成を初期値に) ---- */
 // 法人・薬局リストはサーバー(マスタ)から取得して上書きする。初期値は読み込み前のフォールバック。
@@ -863,7 +863,7 @@ function drawForm(e,title){
     <div class="sec-title">通勤手段</div>
     <div class="frow two">
       <div><label>手段</label>${sel("f_commute",COMMUTES,e.commute||"公共交通機関")}</div>
-      <div><label>備考</label><input id="f_commuteNote" value="${e.commuteNote||""}" placeholder="任意（経路・車種など）"></div>
+      <div><label>備考</label><input id="f_commuteNote" value="${e.commuteNote||""}" placeholder="「その他」の場合に記載"></div>
     </div>
 
     <div class="sec-title">給与振込口座</div>
@@ -1324,7 +1324,7 @@ async function renderSelf(){
     <div class="sec-title">通勤手段</div>
     <div class="frow two">
       <div><label>手段</label>${sel("s_commute",COMMUTES,e.commute||"公共交通機関")}</div>
-      <div><label>備考</label><input id="s_commuteNote" value="${e.commuteNote||""}" placeholder="任意（経路・車種など）"></div>
+      <div><label>備考</label><input id="s_commuteNote" value="${e.commuteNote||""}" placeholder="「その他」の場合に記載"></div>
     </div>
 
     <div class="sec-title">給与振込口座</div>
