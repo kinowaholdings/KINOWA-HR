@@ -132,6 +132,14 @@ tbody tr:hover{background:var(--green-bg)}
 .drawer-body .sec-title{display:block}
 .sec-title:first-child{margin-top:0}
 .readonly-note{font-size:12px;color:var(--sub);background:var(--bg);padding:9px 11px;border-radius:var(--r-sm);margin-bottom:14px}
+/* 扶養家族 */
+.dep-row{display:grid;grid-template-columns:110px 1fr 1fr 140px 34px;gap:8px;align-items:end;margin-bottom:9px}
+.dep-row .dep-del{width:30px;height:30px;border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--sub);cursor:pointer;font-size:15px;line-height:1}
+.dep-row .dep-del:hover{background:#FCEFEE;border-color:#f0cbc6;color:#C0453B}
+.dep-add{font-size:12px;padding:6px 13px;border-radius:7px;border:1px dashed var(--green);background:#fff;color:var(--green-d,#1E8A6B);cursor:pointer}
+.dep-add:hover{background:#F1F8F5}
+.dep-empty{font-size:12.5px;color:var(--sub);padding:10px 0}
+@media(max-width:720px){.dep-row{grid-template-columns:1fr 1fr;gap:6px}}
 .mn-box{background:var(--amber-l);border:1px solid #ecdcb0;border-radius:var(--r-sm);padding:12px;margin-bottom:6px}
 .mn-box .t{font-weight:700;font-size:12.5px;color:var(--amber);margin-bottom:5px;display:flex;align-items:center;gap:6px}
 .mn-box .d{font-size:12px;color:#7a5c10;line-height:1.6}
@@ -614,7 +622,7 @@ tbody tr:hover{background:var(--green-bg)}
    空のままだと内蔵モックで動作します(UI確認用)。
    設定手順は別添「デプロイ手順.md」を参照。
    ============================================================ */
-const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbyN-pVs6ifTBaz-W05tmQ6vY0Lf_0IXQ7dtyhJiGB0z8x25f38Rvdv2i9a2priWgTw5pA/exec";
+const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx8yH08UMGPYv-iaJmiHmHNXGzJvgX4BLqSblwuc2CqUi3UMVsj1JUqllyNGCfQqUKo8g/exec";
 
 /* ---- グループ構成(メモリの実構成を初期値に) ---- */
 // 法人・薬局リストはサーバー(マスタ)から取得して上書きする。初期値は読み込み前のフォールバック。
@@ -623,6 +631,8 @@ let STORES = [];
 const COMMUTES = ["車","公共交通機関","その他"];
 const ACCT_TYPES = ["普通","当座"];
 const ROLES = ["薬剤師","調剤事務","一般事務","営業","その他"];
+// 扶養家族の続柄（年末調整で使う一般的な区分）
+const DEP_RELS = ["配偶者","子","父","母","祖父","祖母","兄弟姉妹","その他"];
 
 /* ============================================================
    API層: GAS_ENDPOINT へ fetch でリクエストする
@@ -881,6 +891,13 @@ function drawForm(e,title){
     </div>
     <div class="frow" style="margin-top:12px"><label>基礎年金番号</label><input id="f_pensionNo" value="${e.pensionNo||""}" placeholder="0000-000000"></div>
 
+    <div class="sec-title">扶養家族</div>
+    <div class="toggle-row"><input type="checkbox" id="f_hasDep" ${e.hasDependents?"checked":""} onchange="depToggle('f')"><label for="f_hasDep">扶養家族がいる</label></div>
+    <div id="f_depWrap" class="${e.hasDependents?"":"hidden"}" style="margin-top:10px">
+      <div id="f_depList"></div>
+      <button type="button" class="dep-add" onclick="depAdd('f')">＋ 扶養家族を追加</button>
+    </div>
+
     <div class="sec-title">マイナンバー</div>
     <div class="mn-box">
       <div class="t">⚠ 番号本体はこのシステムに保存しません</div>
@@ -919,10 +936,68 @@ function drawForm(e,title){
       `<button class="btn-sm sec" style="flex:1" onclick="closeDrawer()">キャンセル</button>
        <button class="btn-sm" style="flex:1" onclick="saveEmp()">保存</button>`;
   }
+  depRender('f', (e&&e.dependents)||[]);
   openDrawer();
   if(e && e.id){ loadHistory(e.id); }
 }
 function accLabel(s){return s==="active"?"有効":s==="invited"?"招待済み":"未発行";}
+
+/* ===== 扶養家族の入力UI（従業員カード prefix='f' / マイ情報 prefix='s' 共通） ===== */
+let DEP_STATE={f:[],s:[]};   // prefixごとの現在の扶養家族リスト
+function depEsc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// 画面の入力値を DEP_STATE に取り込む（描き直しても入力が消えないように）
+function depSync(p){
+  const list=document.getElementById(p+"_depList"); if(!list) return;
+  const rows=[...list.querySelectorAll(".dep-row")];
+  DEP_STATE[p]=rows.map(r=>({
+    rel:  r.querySelector(".dep-rel").value,
+    name: r.querySelector(".dep-name").value.trim(),
+    kana: r.querySelector(".dep-kana").value.trim(),
+    birthday: r.querySelector(".dep-bd").value
+  }));
+}
+function depRender(p, arr){
+  if(arr!==undefined) DEP_STATE[p]=Array.isArray(arr)?arr.map(d=>({rel:d.rel||"",name:d.name||"",kana:d.kana||"",birthday:d.birthday||""})):[];
+  const list=document.getElementById(p+"_depList"); if(!list) return;
+  const A=DEP_STATE[p];
+  if(!A.length){
+    list.innerHTML=`<div class="dep-empty">扶養家族が登録されていません。「＋ 扶養家族を追加」から入力してください。</div>`;
+    return;
+  }
+  list.innerHTML=A.map((d,i)=>`
+    <div class="dep-row">
+      <div><label style="font-size:11px">続柄</label>
+        <select class="dep-rel">${DEP_RELS.map(o=>`<option ${o===d.rel?"selected":""}>${o}</option>`).join("")}</select></div>
+      <div><label style="font-size:11px">氏名</label>
+        <input class="dep-name" value="${depEsc(d.name)}" placeholder="山田 花子"></div>
+      <div><label style="font-size:11px">フリガナ</label>
+        <input class="dep-kana" value="${depEsc(d.kana)}" placeholder="ヤマダ ハナコ"></div>
+      <div><label style="font-size:11px">生年月日</label>
+        <input class="dep-bd" type="date" value="${depEsc(d.birthday)}"></div>
+      <button type="button" class="dep-del" title="この行を削除" onclick="depRemove('${p}',${i})">×</button>
+    </div>`).join("");
+}
+function depAdd(p){
+  depSync(p);
+  DEP_STATE[p].push({rel:"配偶者",name:"",kana:"",birthday:""});
+  depRender(p);
+}
+function depRemove(p,i){
+  depSync(p);
+  DEP_STATE[p].splice(i,1);
+  depRender(p);
+}
+function depToggle(p){
+  const on=document.getElementById(p+"_hasDep").checked;
+  document.getElementById(p+"_depWrap").classList.toggle("hidden",!on);
+  // 「あり」にした直後で1件も無ければ、入力欄を1行出しておく
+  if(on && !DEP_STATE[p].length){ depAdd(p); }
+}
+// 保存用：空行を除いた配列を返す
+function depValue(p){
+  depSync(p);
+  return DEP_STATE[p].filter(d=>d.name||d.kana||d.birthday);
+}
 function toggleLeaveDate(){
   const row=document.getElementById("leaveDateRow");
   if(!row) return;
@@ -978,12 +1053,21 @@ function exportCsv(){
     ["commute","通勤手段"],["commuteNote","通勤備考"],["bankName","銀行"],["bankBranch","支店"],
     ["acctType","種別"],["acctNo","口座番号"],["acctHolder","名義"],
     ["empInsNo","雇用保険番号"],["pensionNo","基礎年金番号"],
-    ["mnCollected","マイナンバー収集"],["accountStatus","アカウント"]];
+    ["mnCollected","マイナンバー収集"],["accountStatus","アカウント"],
+    ["hasDependents","扶養家族"],["depCount","扶養人数"],["depList","扶養家族の内訳"]];
   const esc=v=>{v=(v===undefined||v===null)?"":String(v);
     return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
   const head=cols.map(c=>c[1]).join(",");
   const body=rows.map(e=>cols.map(c=>{
     if(c[0]==="mnCollected")return e.mnCollected?"収集済":"未収集";
+    if(c[0]==="hasDependents")return e.hasDependents?"あり":"なし";
+    const deps=Array.isArray(e.dependents)?e.dependents:[];
+    if(c[0]==="depCount")return e.hasDependents?String(deps.length):"0";
+    if(c[0]==="depList"){
+      // 社労士が読めるよう「続柄:氏名(フリガナ) 生年月日」を / 区切りで並べる
+      if(!e.hasDependents||!deps.length)return "";
+      return esc(deps.map(d=>`${d.rel||""}:${d.name||""}（${d.kana||""}）${d.birthday||""}`).join(" / "));
+    }
     return esc(e[c[0]]);
   }).join(",")).join("\r\n");
   const csv="\uFEFF"+head+"\r\n"+body; // BOM付きでExcelの文字化け防止
@@ -1009,7 +1093,9 @@ async function saveEmp(){
     bankName:val("f_bankName"),bankBranch:val("f_bankBranch"),acctType:val("f_acctType"),
     acctNo:normalizeDigits(val("f_acctNo")),acctHolder:val("f_acctHolder"),
     empInsNo:val("f_empInsNo"),pensionNo:val("f_pensionNo"),
-    mnCollected:document.getElementById("f_mn").checked
+    mnCollected:document.getElementById("f_mn").checked,
+    hasDependents:document.getElementById("f_hasDep").checked,
+    dependents:depValue("f")
   };
   // 新規登録時は 氏名・入職日・メール・法人・薬局 を必須に
   if(isNew){
@@ -1258,6 +1344,14 @@ async function renderSelf(){
     <div class="sec-title">社会保険（厚生年金）</div>
     <div class="frow"><label>基礎年金番号</label><input id="s_pensionNo" value="${e.pensionNo||""}" placeholder="お手元の番号がわかる場合のみ"></div>
 
+    <div class="sec-title">扶養家族</div>
+    <div class="readonly-note">扶養している家族がいる場合は入力してください。年末調整や社会保険の手続きに使います。</div>
+    <div class="toggle-row"><input type="checkbox" id="s_hasDep" ${e.hasDependents?"checked":""} onchange="depToggle('s')"><label for="s_hasDep">扶養家族がいる</label></div>
+    <div id="s_depWrap" class="${e.hasDependents?"":"hidden"}" style="margin-top:10px">
+      <div id="s_depList"></div>
+      <button type="button" class="dep-add" onclick="depAdd('s')">＋ 扶養家族を追加</button>
+    </div>
+
     <div style="margin-top:24px;display:flex;gap:10px">
       <button class="btn-sm" onclick="saveMe()">入力内容を保存</button>
     </div>
@@ -1269,6 +1363,7 @@ async function renderSelf(){
       <div><label>新しいパスワード（確認）</label><input id="pc_new2" type="password" autocomplete="new-password"></div>
     </div>
     <div><button class="btn-sm sec" onclick="changeMyPassword()">パスワードを変更</button></div>`;
+  depRender('s', e.dependents||[]);
 }
 async function changeMyPassword(){
   const oldPw=val("pc_old"),newPw=val("pc_new"),newPw2=val("pc_new2");
@@ -1289,14 +1384,16 @@ async function saveMe(){
     commute:val("s_commute"),commuteNote:val("s_commuteNote"),
     bankName:val("s_bankName"),bankBranch:val("s_bankBranch"),acctType:val("s_acctType"),
     acctNo:normalizeDigits(val("s_acctNo")),acctHolder:val("s_acctHolder"),
-    empInsNo:val("s_empInsNo"),pensionNo:val("s_pensionNo")
+    empInsNo:val("s_empInsNo"),pensionNo:val("s_pensionNo"),
+    hasDependents:document.getElementById("s_hasDep").checked,
+    dependents:depValue("s")
   });
   const errs=validateEmp(e);
   if(errs.length){return toast(errs[0]);}
   const r=await api("saveMe",{emp:e});
   if(!r||!r.ok){return toast((r&&r.error)||"保存に失敗しました");}
   selfEmp=r.emp||e;
-  renderSelf();toast("保存しました");
+  await renderSelf();toast("保存しました");
 }
 
 function logout(){clearSession();location.reload();}
