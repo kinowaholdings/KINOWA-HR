@@ -139,6 +139,11 @@ tbody tr:hover{background:var(--green-bg)}
 .dep-add{font-size:12px;padding:6px 13px;border-radius:7px;border:1px dashed var(--green);background:#fff;color:var(--green-d,#1E8A6B);cursor:pointer}
 .dep-add:hover{background:#F1F8F5}
 .dep-empty{font-size:12.5px;color:var(--sub);padding:10px 0}
+/* 一括招待バー */
+.bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#F1F8F5;border:1px solid var(--green);border-radius:9px;padding:10px 14px;margin-bottom:12px}
+.bulk-bar .cnt{font-size:13px;font-weight:700;color:var(--green-d,#1E8A6B)}
+.bulk-bar .acts{display:flex;gap:8px}
+.chk-cell{width:15px;height:15px;accent-color:var(--green);cursor:pointer}
 @media(max-width:720px){.dep-row{grid-template-columns:1fr 1fr;gap:6px}}
 .mn-box{background:var(--amber-l);border:1px solid #ecdcb0;border-radius:var(--r-sm);padding:12px;margin-bottom:6px}
 .mn-box .t{font-weight:700;font-size:12.5px;color:var(--amber);margin-bottom:5px;display:flex;align-items:center;gap:6px}
@@ -267,8 +272,15 @@ tbody tr:hover{background:var(--green-bg)}
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer">
             <input type="checkbox" id="showDeleted" onchange="renderList()" style="width:16px;height:16px;accent-color:var(--green)">削除済みを表示</label>
         </div>
+        <div id="bulkBar" class="bulk-bar hidden">
+          <div class="cnt"><span id="bulkCount">0</span> 名を選択中</div>
+          <div class="acts">
+            <button class="btn-sm sec" onclick="clearChk()">選択を解除</button>
+            <button class="btn-sm" onclick="sendInviteBulk()">招待メールを一括送信</button>
+          </div>
+        </div>
         <div class="tablewrap">
-          <table><thead><tr><th>氏名</th><th>法人 / 薬局</th><th>状態</th><th>入力状況</th><th>マイナンバー</th><th>アカウント</th></tr></thead>
+          <table><thead><tr><th style="width:38px"><input type="checkbox" id="chkAll" onclick="toggleAllChk(event)" title="表示中の送信可能な人を全選択" style="width:15px;height:15px;accent-color:var(--green);cursor:pointer"></th><th>氏名</th><th>法人 / 薬局</th><th>状態</th><th>入力状況</th><th>マイナンバー</th><th>アカウント</th></tr></thead>
           <tbody id="listBody"></tbody></table>
           <div id="listEmpty" class="empty hidden">該当する社員がいません</div>
         </div>
@@ -323,6 +335,17 @@ tbody tr:hover{background:var(--green-bg)}
             <div class="tablewrap"><table><tbody id="storeBody"></tbody></table>
               <div id="storeEmpty" class="empty hidden">薬局が登録されていません</div></div>
           </div>
+        </div>
+
+        <div class="sec-title" style="display:block;margin-top:30px">従業員更新の通知先メール</div>
+        <div class="readonly-note" style="margin-bottom:14px">従業員が自分で情報を更新したとき、ここに登録したメールアドレスすべてに通知が届きます。複数登録できます。</div>
+        <div id="notifyList" style="max-width:520px"></div>
+        <div class="toolbar" style="max-width:520px;margin-top:10px">
+          <input type="email" id="newNotify" placeholder="通知先メールアドレスを追加" style="flex:1;min-width:0">
+          <button class="btn-sm sec" onclick="addNotifyEmail()">追加</button>
+        </div>
+        <div style="max-width:520px;margin-top:12px">
+          <button class="btn-sm" onclick="saveNotifyEmails()">通知先を保存</button>
         </div>
       </section>
       <section id="page-self" class="page hidden">
@@ -800,7 +823,7 @@ function renderList(){
   const rows=EMPS.filter(e=>{
     const done=isProfileComplete(e);
     return (showDel ? e.deleted===true : e.deleted!==true)&&
-    (!q||(e.name||"").toLowerCase().includes(q)||(e.email||"").toLowerCase().includes(q))&&
+    (!q||(e.name||"").toLowerCase().includes(q)||(e.bizName||"").toLowerCase().includes(q)||(e.email||"").toLowerCase().includes(q))&&
     (!fc||e.corp===fc)&&(!fs||e.store===fs)&&(!fst||e.status===fst)&&
     (!ff||(ff==="done"?done:!done))&&
     (!fm||(fm==="yes"?e.mnCollected:!e.mnCollected));
@@ -810,15 +833,25 @@ function renderList(){
   document.getElementById("listEmpty").classList.toggle("hidden",rows.length>0);
   document.getElementById("listBody").innerHTML=rows.map(e=>{
     const done=isProfileComplete(e);
+    // 招待を送れる条件：メールがあり、アカウントがまだ有効でなく、削除されていない
+    const canInvite = !!(e.email) && e.accountStatus!=="active" && !e.deleted;
+    const why = !e.email ? "メール未登録のため送信できません"
+              : e.accountStatus==="active" ? "すでにアカウントが有効です"
+              : e.deleted ? "削除済みです" : "";
     return `
     <tr onclick="openEmp('${e.id}')" ${e.deleted?'style="opacity:.6"':""}>
-      <td><b>${e.name||"（氏名未入力）"}</b>${e.deleted?' <span class="badge b-leave">削除済</span>':""}</td>
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" class="chk-cell emp-chk" value="${e.id}" ${canInvite?"":"disabled"}
+          ${canInvite?"":`title="${why}"`} onchange="updateBulkBar()">
+      </td>
+      <td><b>${e.bizName ? e.bizName : (e.name||"（氏名未入力）")}</b>${e.bizName?`<br><span style="color:var(--sub);font-size:11px">本名: ${e.name||""}</span>`:""}${e.deleted?' <span class="badge b-leave">削除済</span>':""}</td>
       <td>${e.corp||"—"}<br><span style="color:var(--sub);font-size:12px">${e.store||""}</span></td>
       <td><span class="badge ${e.status==="在籍"?"b-active":"b-leave"}">${e.status||"—"}</span>${(e.status==="退職"&&e.leaveDate)?`<br><span style="color:var(--sub);font-size:11.5px">${e.leaveDate}</span>`:""}</td>
       <td><span class="badge ${done?"b-yes":"b-pend"}">${done?"入力済":"未入力"}</span></td>
       <td><span class="badge ${e.mnCollected?"b-yes":"b-no"}">${e.mnCollected?"収集済":"未収集"}</span></td>
       <td>${accBadge(e.accountStatus)}</td>
     </tr>`;}).join("");
+  updateBulkBar();
 }
 function accBadge(s){return s==="active"?'<span class="badge b-yes">有効</span>':
   s==="invited"?'<span class="badge b-invited">招待済</span>':'<span class="badge b-leave">未発行</span>';}
@@ -835,6 +868,7 @@ function drawForm(e,title){
     <div class="sec-title">基本情報</div>
     ${(!e||!e.id)?'<div class="readonly-note">＊印は新規登録時の必須項目です。</div>':''}
     <div class="frow"><label>氏名${req}</label><input id="f_name" value="${e.name||""}"></div>
+    <div class="frow"><label>ビジネスネーム（旧姓等・任意）</label><input id="f_bizName" value="${e.bizName||""}" placeholder="職場で使う呼称。入籍後も旧姓で働く場合など"></div>
     <div class="frow two">
       <div><label>法人${req}</label>${sel("f_corp",CORPS,e.corp)}</div>
       <div><label>薬局${req}</label>${sel("f_store",STORES,e.store)}</div>
@@ -942,6 +976,63 @@ function drawForm(e,title){
 }
 function accLabel(s){return s==="active"?"有効":s==="invited"?"招待済み":"未発行";}
 
+/* ===== 招待メールの一括送信 ===== */
+function checkedIds(){
+  return [...document.querySelectorAll(".emp-chk:checked")].map(c=>c.value);
+}
+// 選択数の表示とバーの出し入れ
+function updateBulkBar(){
+  const n=checkedIds().length;
+  const cnt=document.getElementById("bulkCount");
+  const bar=document.getElementById("bulkBar");
+  if(!cnt||!bar) return;
+  cnt.textContent=n;
+  bar.classList.toggle("hidden", n===0);
+  // 全選択チェックの状態を、選択可能な件数と突き合わせて同期
+  const all=[...document.querySelectorAll(".emp-chk:not([disabled])")];
+  const allChk=document.getElementById("chkAll");
+  if(allChk){
+    allChk.checked = all.length>0 && n===all.length;
+    allChk.indeterminate = n>0 && n<all.length;
+  }
+}
+// ヘッダーの全選択（送信できる人だけが対象）
+function toggleAllChk(ev){
+  const on=ev.target.checked;
+  document.querySelectorAll(".emp-chk:not([disabled])").forEach(c=>{c.checked=on;});
+  updateBulkBar();
+}
+function clearChk(){
+  document.querySelectorAll(".emp-chk").forEach(c=>{c.checked=false;});
+  updateBulkBar();
+}
+let bulkSending=false;
+async function sendInviteBulk(){
+  if(bulkSending) return;
+  const ids=checkedIds();
+  if(!ids.length) return toast("送信する人を選んでください");
+  // 誰に送るか名前を出して確認（誤爆防止）
+  const names=ids.map(id=>{const e=EMPS.find(x=>x.id===id);return e?(e.name||id):id;});
+  const preview=names.slice(0,5).join("、")+(names.length>5?` ほか${names.length-5}名`:"");
+  if(!confirm(`${ids.length}名に招待メールを送信します。\n\n${preview}\n\nよろしいですか？`)) return;
+
+  bulkSending=true;
+  toast(`${ids.length}名に送信中…`);
+  const r=await api("sendInviteBulk",{empIds:ids});
+  bulkSending=false;
+  if(!r||!r.ok){ return toast((r&&r.error)||"一括送信に失敗しました"); }
+
+  // 結果を伝える（失敗があれば理由も出す）
+  if(r.failedCount>0){
+    const lines=r.failed.map(f=>`・${f.name||f.id}：${f.reason}`).join("\n");
+    alert(`送信できた人：${r.sentCount}名\n送信できなかった人：${r.failedCount}名\n\n${lines}`);
+  }else{
+    toast(`${r.sentCount}名に招待メールを送信しました`);
+  }
+  const lr=await api("list",{}); EMPS=lr.emps||EMPS;
+  renderList();   // アカウント状態(招待済み)を反映＆選択をリセット
+}
+
 /* ===== 扶養家族の入力UI（従業員カード prefix='f' / マイ情報 prefix='s' 共通） ===== */
 let DEP_STATE={f:[],s:[]};   // prefixごとの現在の扶養家族リスト
 function depEsc(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1048,7 +1139,7 @@ function exportCsv(){
   const showDel=document.getElementById("showDeleted").checked;
   const rows=EMPS.filter(e=> showDel ? e.deleted===true : e.deleted!==true);
   if(!rows.length){return toast("出力対象がありません");}
-  const cols=[["id","ID"],["name","氏名"],["corp","法人"],["store","薬局"],["role","職種"],["status","状態"],
+  const cols=[["id","ID"],["name","氏名"],["bizName","ビジネスネーム"],["corp","法人"],["store","薬局"],["role","職種"],["status","状態"],
     ["joinDate","入社日"],["leaveDate","退職日"],["tel","電話"],["email","メール"],["address","現住所"],
     ["commute","通勤手段"],["commuteNote","通勤備考"],["bankName","銀行"],["bankBranch","支店"],
     ["acctType","種別"],["acctNo","口座番号"],["acctHolder","名義"],
@@ -1085,7 +1176,7 @@ async function saveEmp(){
   const isNew=!editingId;
   const stVal=val("f_status");
   const emp={
-    id:editingId,name:val("f_name").trim(),corp:val("f_corp"),store:val("f_store"),role:val("f_role"),
+    id:editingId,name:val("f_name").trim(),bizName:val("f_bizName").trim(),corp:val("f_corp"),store:val("f_store"),role:val("f_role"),
     status:stVal,joinDate:val("f_join"),birthday:val("f_birthday"),
     leaveDate:(stVal==="退職"?val("f_leave"):""),tel:normalizeDigits(val("f_tel")),
     email:val("f_email").trim().toLowerCase(),address:val("f_address"),
@@ -1222,6 +1313,51 @@ function exportHistoryCsv(){
 function renderSettings(){
   renderMasterTable("corp");
   renderMasterTable("store");
+  loadNotifyEmails();
+}
+
+/* ===== 従業員更新の通知先メール ===== */
+let NOTIFY_LIST=[];
+async function loadNotifyEmails(){
+  const r=await api("getNotifyEmails",{});
+  NOTIFY_LIST = (r&&r.ok&&Array.isArray(r.emails)) ? r.emails.slice() : [];
+  renderNotifyList();
+}
+function renderNotifyList(){
+  const box=document.getElementById("notifyList");
+  if(!box) return;
+  if(!NOTIFY_LIST.length){
+    box.innerHTML=`<div class="dep-empty">通知先が登録されていません。下の欄から追加してください。</div>`;
+    return;
+  }
+  const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  box.innerHTML=NOTIFY_LIST.map((em,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px">
+      <span style="font-size:13px">${esc(em)}</span>
+      <button class="dep-del" title="削除" onclick="removeNotifyEmail(${i})">×</button>
+    </div>`).join("");
+}
+function addNotifyEmail(){
+  const inp=document.getElementById("newNotify");
+  const v=(inp.value||"").trim().toLowerCase();
+  if(!v) return;
+  if(!/.+@.+\..+/.test(v)) return toast("メールアドレスの形式が正しくありません");
+  if(NOTIFY_LIST.indexOf(v)>=0){ inp.value=""; return toast("すでに登録されています"); }
+  NOTIFY_LIST.push(v);
+  inp.value="";
+  renderNotifyList();
+}
+function removeNotifyEmail(i){
+  NOTIFY_LIST.splice(i,1);
+  renderNotifyList();
+}
+async function saveNotifyEmails(){
+  if(!NOTIFY_LIST.length) return toast("通知先を1件以上登録してください");
+  const r=await api("saveNotifyEmails",{emails:NOTIFY_LIST});
+  if(!r||!r.ok) return toast((r&&r.error)||"保存に失敗しました");
+  NOTIFY_LIST=r.emails.slice();
+  renderNotifyList();
+  toast("通知先を保存しました");
 }
 function renderMasterTable(kind){
   const list=kind==="corp"?CORPS:STORES;
@@ -1311,6 +1447,7 @@ async function renderSelf(){
 
     <div class="sec-title">基本情報</div>
     <div class="frow"><label>氏名</label><input id="s_name" value="${e.name||""}"></div>
+    <div class="frow"><label>ビジネスネーム（旧姓等・任意）</label><input id="s_bizName" value="${e.bizName||""}" placeholder="職場で使う呼称。入籍後も旧姓で働く場合など"></div>
     <div class="frow two">
       <div><label>メールアドレス（ログインID）</label><input id="s_email" value="${e.email||""}" readonly style="background:#eef0ef"></div>
       <div><label>電話</label><input id="s_tel" value="${e.tel||""}" placeholder="090-0000-0000"></div>
@@ -1380,7 +1517,7 @@ async function changeMyPassword(){
 }
 async function saveMe(){
   const e=Object.assign({}, selfEmp, {
-    name:val("s_name").trim(),tel:normalizeDigits(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
+    name:val("s_name").trim(),bizName:val("s_bizName").trim(),tel:normalizeDigits(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
     commute:val("s_commute"),commuteNote:val("s_commuteNote"),
     bankName:val("s_bankName"),bankBranch:val("s_bankBranch"),acctType:val("s_acctType"),
     acctNo:normalizeDigits(val("s_acctNo")),acctHolder:val("s_acctHolder"),
