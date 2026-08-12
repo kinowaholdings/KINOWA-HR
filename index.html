@@ -460,7 +460,8 @@ tbody tr:hover{background:var(--green-bg)}
     <div><h2>退職者分析</h2><div class="sub">退職時アンケートの回答を、店舗・職種・勤続・事由の各軸で可視化します</div></div>
     <div style="display:flex;gap:9px">
       <button class="btn-sm sec" onclick="xtRenderSample()">サンプルデータで表示</button>
-      <button class="btn-sm sec" onclick="xtExportCsv()">CSV出力</button>
+      <button class="btn-sm sec" onclick="xtExportCsv()">集計用CSV</button>
+      <button class="btn-sm sec" onclick="xtExportRaw()">回答全文CSV</button>
     </div>
   </div>
 
@@ -620,6 +621,22 @@ tbody tr:hover{background:var(--green-bg)}
       </div>
       <div style="overflow-x:auto"><table class="xt-tbl" id="xtBenchTable"></table></div>
       <div class="xt-footnote">回避可能率＝「続けたかった」または「改善で残れた」と答えた人の割合。母数が少ない店舗は参考値として扱ってください。</div>
+    </div>
+  </div>
+
+  <div class="xt-card" style="margin-top:22px">
+    <div class="xt-card-head">
+      <div>
+        <div class="xt-card-title">回答一覧（生データ）</div>
+        <div class="xt-card-sub">加工前の回答をそのまま表示します。上部のフィルタが適用されます。</div>
+      </div>
+      <button class="btn-sm sec" onclick="xtToggleRaw()" id="xtRawToggle">表示する</button>
+    </div>
+    <div id="xtRawWrap" class="hidden">
+      <div style="background:#FBF2DD;border:1px solid #ecdcb0;color:#9a6a05;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;line-height:1.7">
+        氏名と自由記述がそのまま表示されます。画面共有・スクリーンショットの際はご注意ください。
+      </div>
+      <div style="overflow-x:auto"><table class="xt-tbl" id="xtRawTable"></table></div>
     </div>
   </div>
 </section>
@@ -1758,6 +1775,7 @@ window.XT_SAMPLE_TV = {"rows": [{"empId": "SAMPLE-1", "store": "くりの木薬�
     const t=document.getElementById('xtTenure').value;
     xtFiltered = XT_DATA.filter(d=>(!s||d.store===s)&&(!r||d.role===r)&&(!t||d.tenure===t));
     document.getElementById('xtCount').textContent='対象 '+xtFiltered.length+' 件';
+    if(xtRawOpen) xtRenderRaw();
     xtRenderAll();
   }
 
@@ -2068,6 +2086,81 @@ window.XT_SAMPLE_TV = {"rows": [{"empId": "SAMPLE-1", "store": "くりの木薬�
 
 
   // CSV出力（フィルタ後）
+
+  /* ===== 回答一覧（生データ） ===== */
+  const XT_RAW_COLS = [
+    {k:'leftYM',     l:'退職年月', w:78},
+    {k:'name',       l:'氏名',     w:92},
+    {k:'empId',      l:'ID',       w:58},
+    {k:'store',      l:'店舗',     w:104},
+    {k:'role',       l:'職種',     w:96},
+    {k:'tenure',     l:'勤続',     w:80},
+    {k:'mainReason', l:'主な理由', w:150},
+    {k:'reasons',    l:'該当した理由（複数）', w:210},
+    {k:'couldStay',  l:'改善で残れたか', w:96},
+    {k:'wanted',     l:'続けたかったか', w:150},
+    {k:'hardship',   l:'つらかったこと', w:230},
+    {k:'improve',    l:'改善してほしいこと', w:230},
+    {k:'good',       l:'良かったこと', w:210},
+    {k:'freeLast',   l:'最後に一言', w:230},
+    {k:'timestamp',  l:'回答日時', w:130}
+  ];
+  let xtRawOpen = false;
+
+  window.xtToggleRaw = function(){
+    xtRawOpen = !xtRawOpen;
+    document.getElementById('xtRawWrap').classList.toggle('hidden', !xtRawOpen);
+    document.getElementById('xtRawToggle').textContent = xtRawOpen ? '閉じる' : '表示する';
+    if(xtRawOpen) xtRenderRaw();
+  };
+
+  function xtFmtTs(v){
+    if(!v) return '';
+    const d = new Date(v);
+    if(isNaN(d)) return String(v);
+    const z = n => String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+' '+z(d.getHours())+':'+z(d.getMinutes());
+  }
+
+  function xtRenderRaw(){
+    const t = document.getElementById('xtRawTable');
+    if(!t) return;
+    const D = xtFiltered;
+    if(!D.length){
+      t.innerHTML = '<tbody><tr><td style="padding:26px;text-align:center;color:var(--sub)">該当する回答がありません</td></tr></tbody>';
+      return;
+    }
+    const head = '<thead><tr>' + XT_RAW_COLS.map(c =>
+      '<th style="min-width:'+c.w+'px;white-space:nowrap">'+xtEsc(c.l)+'</th>').join('') + '</tr></thead>';
+    const body = '<tbody>' + D.map(d => '<tr>' + XT_RAW_COLS.map(c => {
+      let v = d[c.k];
+      if(Array.isArray(v)) v = v.join(' / ');
+      if(c.k === 'timestamp') v = xtFmtTs(v);
+      v = (v == null || v === '') ? '–' : String(v);
+      const long = ['hardship','improve','good','freeLast','reasons'].indexOf(c.k) >= 0;
+      return '<td style="vertical-align:top'+(long?';white-space:pre-wrap;line-height:1.7':'')+'">'+xtEsc(v)+'</td>';
+    }).join('') + '</tr>').join('') + '</tbody>';
+    t.innerHTML = head + body;
+  }
+
+  // 全項目をそのまま出すCSV
+  window.xtExportRaw = function(){
+    const D = xtFiltered;
+    if(!D.length){ toast('出力対象がありません'); return; }
+    const esc = v => { if(Array.isArray(v)) v = v.join(' / ');
+      v = (v == null ? '' : String(v));
+      return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+    const rows = [XT_RAW_COLS.map(c => c.l).join(',')].concat(
+      D.map(d => XT_RAW_COLS.map(c => esc(c.k === 'timestamp' ? xtFmtTs(d[c.k]) : d[c.k])).join(',')));
+    const blob = new Blob(['\uFEFF'+rows.join('\r\n')], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    const dt = new Date(), z = n => String(n).padStart(2,'0');
+    a.href = URL.createObjectURL(blob);
+    a.download = `退職者アンケート_回答全文_${dt.getFullYear()}${z(dt.getMonth()+1)}${z(dt.getDate())}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast('回答全文をCSVで出力しました');
+  };
+
   window.xtExportCsv = function(){
     const D=xtFiltered;
     if(!D.length){ toast('出力対象がありません'); return; }
