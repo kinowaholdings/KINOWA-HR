@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>マイナンバーのご提出｜木の和ホールディングス</title>
+<style>
+:root{--bg:#F7F8F6;--panel:#FFF;--ink:#1E2A26;--sub:#6B7771;--line:#E4E8E4;--accent:#1E8A6B;--warn:#C0453B;--chip:#EEF3F0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",system-ui,sans-serif;line-height:1.75;-webkit-font-smoothing:antialiased}
+.wrap{max-width:640px;margin:0 auto;padding:28px 20px 72px}
+.wide{max-width:1040px}
+h1{font-size:21px;margin:0 0 6px;letter-spacing:.02em}
+h2{font-size:16px;margin:0 0 4px}
+.lead{font-size:13.5px;color:var(--sub);margin:0 0 20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:16px}
+label{display:block;font-size:12.5px;font-weight:700;margin-bottom:5px}
+input[type=text],input[type=email],input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;background:#fff}
+input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.hint{font-size:11.5px;color:var(--sub);margin-top:4px}
+button{padding:11px 20px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit}
+button.ghost{background:#fff;color:var(--ink)}
+button.sm{padding:6px 12px;font-size:12.5px;border-radius:6px}
+button.danger{background:var(--warn);border-color:var(--warn)}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.err{color:var(--warn);font-size:13px;font-weight:700;margin-top:10px}
+.ok{color:var(--accent);font-size:13px;font-weight:700;margin-top:10px}
+.notice{background:var(--chip);border-radius:8px;padding:13px 15px;font-size:12.5px;line-height:1.8;margin-bottom:18px}
+.dep{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:10px;position:relative}
+.dep .del{position:absolute;top:10px;right:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:11.5px;color:var(--sub);border-bottom:1px solid var(--ink);white-space:nowrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700}
+.b-none{background:#F1F1F0;color:var(--sub)}
+.b-sent{background:#FDF3E7;color:#8A5A20}
+.b-sub{background:#E8F2ED;color:var(--accent)}
+.b-done{background:#EDEFED;color:var(--sub)}
+.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:17px;letter-spacing:.12em;font-weight:700}
+.hidden{display:none}
+.foot{font-size:11.5px;color:var(--sub);text-align:center;margin-top:28px;line-height:1.9}
+</style>
+</head>
+<body>
+
+<!-- ========== 本人：提出フォーム ========== -->
+<div class="wrap hidden" id="vForm">
+  <h1>マイナンバーのご提出</h1>
+  <p class="lead" id="fName"></p>
+  <div class="notice">
+    ご入力いただいた番号は暗号化して保管され、社会保険労務士が確認したのち<b>速やかに削除</b>されます。<br>
+    会社の担当者が番号を見ることはありません。
+  </div>
+  <div class="card">
+    <label for="mn">あなたのマイナンバー（12桁）</label>
+    <input type="text" id="mn" inputmode="numeric" autocomplete="off" placeholder="123456789012" maxlength="14">
+    <div class="hint">カードや通知書に記載の12桁の数字です。ハイフンや空白は入れなくて構いません。</div>
+  </div>
+  <div class="card">
+    <h2>扶養しているご家族</h2>
+    <p class="hint" style="margin:0 0 14px">扶養に入っているご家族がいる場合のみ入力してください。いなければ空のままで結構です。</p>
+    <div id="depList"></div>
+    <button class="ghost sm" id="addDep">＋ 家族を追加</button>
+  </div>
+  <div class="row">
+    <button id="submitBtn">送信する</button>
+  </div>
+  <div id="formMsg"></div>
+</div>
+
+<!-- ========== 本人：完了 ========== -->
+<div class="wrap hidden" id="vDone">
+  <div class="card" style="text-align:center;padding:44px 22px">
+    <h1 style="margin-bottom:10px">ご提出ありがとうございました</h1>
+    <p class="lead" style="margin:0">この画面は閉じていただいて構いません。</p>
+  </div>
+</div>
+
+<!-- ========== 案内・エラー ========== -->
+<div class="wrap hidden" id="vInfo">
+  <div class="card" style="text-align:center;padding:44px 22px">
+    <h1 style="margin-bottom:10px" id="infoTitle">ご案内</h1>
+    <p class="lead" style="margin:0" id="infoBody"></p>
+  </div>
+  <div style="text-align:center"><button class="ghost sm" id="toLogin">管理者の方はこちら</button></div>
+</div>
+
+<!-- ========== 管理：ログイン ========== -->
+<div class="wrap hidden" id="vLogin">
+  <h1>マイナンバー管理</h1>
+  <p class="lead">人事担当者・社会保険労務士の方はこちらからログインしてください。</p>
+  <div class="card">
+    <label for="lEmail">ログインID（メールアドレス）</label>
+    <input type="email" id="lEmail" autocomplete="off">
+    <div style="height:12px"></div>
+    <label for="lPw">パスワード</label>
+    <input type="password" id="lPw" autocomplete="off">
+    <div style="height:16px"></div>
+    <button id="loginBtn">ログイン</button>
+    <div id="loginMsg"></div>
+  </div>
+</div>
+
+<!-- ========== 管理：一覧 ========== -->
+<div class="wrap wide hidden" id="vAdmin">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px">
+    <h1 style="margin:0">マイナンバー提出状況</h1>
+    <button class="ghost sm" id="logoutBtn">ログアウト</button>
+  </div>
+  <p class="lead" id="roleLabel"></p>
+
+  <!-- 人事のみ -->
+  <div class="card hidden" id="hrPanel">
+    <h2>対象者を登録する</h2>
+    <p class="hint" style="margin:0 0 12px">1行に「氏名,メールアドレス」の形式で入力してください。複数行まとめて登録できます。</p>
+    <textarea id="bulk" rows="4" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit" placeholder="山田太郎,yamada@example.com&#10;鈴木花子,suzuki@example.com"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="addBtn">登録する</button>
+      <button id="sendBtn">未依頼・依頼済みの方へ提出依頼メールを送る</button>
+    </div>
+    <div id="hrMsg"></div>
+  </div>
+
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table id="tbl">
+        <thead><tr>
+          <th>氏名</th><th>メール</th><th>状態</th><th>依頼日</th><th>提出日</th><th>扶養</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="hint" id="listNote" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- ========== 社労士：番号表示 ========== -->
+<div class="wrap hidden" id="vReveal">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px">
+    <h1 style="margin:0" id="rName">　</h1>
+    <button class="ghost sm" id="rBack">一覧に戻る</button>
+  </div>
+  <div class="notice">
+    この画面は記録されません。番号を控えたら、必ず<b>受領完了</b>を押してください。押した時点でデータは削除されます。
+  </div>
+  <div class="card" id="rBody"></div>
+  <div class="row">
+    <button class="danger" id="completeBtn">受領完了（データを削除する）</button>
+  </div>
+  <div id="rMsg"></div>
+</div>
+
+<div class="foot">木の和ホールディングス</div>
+
+<script>
+/* ============================================================
+   ★ 接続先の設定 ★
+   マイナンバー収集システムの Apps Script デプロイURL（/exec）を貼ってください。
+   ============================================================ */
+const API = "https://script.google.com/macros/s/AKfycbwLgCjnZUk6_aaTFTnyFLJZzxtxHf0rY6VPnrAs4OqTSQJoujT8em6glNZZHbZSYHoe/exec";
+const READY = API && !API.startsWith("PASTE_");
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+
+let session = null, rows = [], deps = [], curId = '';
+
+function show(id){
+  ['vForm','vDone','vInfo','vLogin','vAdmin','vReveal'].forEach(v=>$(v).classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+function info(title, body, showLogin){
+  $('infoTitle').textContent = title;
+  $('infoBody').textContent = body;
+  $('toLogin').style.display = showLogin ? '' : 'none';
+  show('vInfo');
+}
+async function call(action, payload){
+  const body = Object.assign({action:action}, payload||{});
+  if(session) body.token = session.token;
+  const res = await fetch(API, {method:'POST', body: JSON.stringify(body)});
+  return await res.json();
+}
+
+/* ---------- 本人：提出フォーム ---------- */
+function renderDeps(){
+  $('depList').innerHTML = deps.map((d,i)=>
+    '<div class="dep">'+
+    '<button class="ghost sm del" data-i="'+i+'">削除</button>'+
+    '<div class="grid2">'+
+    '<div><label>お名前</label><input type="text" data-f="name" data-i="'+i+'" value="'+esc(d.name)+'" autocomplete="off"></div>'+
+    '<div><label>続柄</label><input type="text" data-f="rel" data-i="'+i+'" value="'+esc(d.rel)+'" placeholder="配偶者・子 など" autocomplete="off"></div>'+
+    '</div>'+
+    '<div style="margin-top:10px"><label>マイナンバー（12桁）</label>'+
+    '<input type="text" data-f="number" data-i="'+i+'" inputmode="numeric" value="'+esc(d.number)+'" maxlength="14" autocomplete="off"></div>'+
+    '</div>').join('');
+}
+$('addDep').addEventListener('click', ()=>{ deps.push({name:'',rel:'',number:''}); renderDeps(); });
+$('depList').addEventListener('input', e=>{
+  const t=e.target; if(!t.dataset.f) return;
+  deps[Number(t.dataset.i)][t.dataset.f] = t.value;
+});
+$('depList').addEventListener('click', e=>{
+  if(!e.target.classList.contains('del')) return;
+  deps.splice(Number(e.target.dataset.i),1); renderDeps();
+});
+
+$('submitBtn').addEventListener('click', async ()=>{
+  const msg = $('formMsg'); msg.innerHTML='';
+  const mn = $('mn').value.replace(/[^0-9]/g,'');
+  if(!/^\d{12}$/.test(mn)){ msg.innerHTML='<div class="err">マイナンバーは12桁の数字で入力してください</div>'; return; }
+  for(const d of deps){
+    if(!d.name.trim()){ msg.innerHTML='<div class="err">ご家族のお名前が入力されていません</div>'; return; }
+    if(!/^\d{12}$/.test(String(d.number).replace(/[^0-9]/g,''))){
+      msg.innerHTML='<div class="err">ご家族のマイナンバーは12桁の数字で入力してください</div>'; return; }
+  }
+  const btn=$('submitBtn'); btn.disabled=true; btn.textContent='送信中…';
+  try{
+    const r = await fetch(API, {method:'POST', body: JSON.stringify({action:'submit', token:TOKEN, myNumber:mn, dependents:deps})});
+    const d = await r.json();
+    if(d.ok){ $('mn').value=''; deps=[]; show('vDone'); return; }
+    msg.innerHTML = '<div class="err">'+esc(d.error||'送信に失敗しました')+'</div>';
+  }catch(e){ msg.innerHTML='<div class="err">通信に失敗しました。電波の良い場所で再度お試しください</div>'; }
+  finally{ btn.disabled=false; btn.textContent='送信する'; }
+});
+
+/* ---------- 管理：ログイン ---------- */
+$('toLogin').addEventListener('click', ()=>show('vLogin'));
+$('loginBtn').addEventListener('click', login);
+$('lPw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+
+async function login(){
+  const msg=$('loginMsg'); msg.innerHTML='';
+  const email=$('lEmail').value.trim(), pw=$('lPw').value;
+  if(!email||!pw){ msg.innerHTML='<div class="err">メールアドレスとパスワードを入力してください</div>'; return; }
+  const btn=$('loginBtn'); btn.disabled=true; btn.textContent='確認中…';
+  try{
+    const r = await fetch(API, {method:'POST', body: JSON.stringify({action:'login', email:email, pw:pw})});
+    const d = await r.json();
+    if(!d.ok){ msg.innerHTML='<div class="err">'+esc(d.error)+'</div>'; return; }
+    session = {token:d.token, role:d.role, email:d.email};
+    $('lPw').value='';
+    await loadList();
+  }catch(e){ msg.innerHTML='<div class="err">通信に失敗しました</div>'; }
+  finally{ btn.disabled=false; btn.textContent='ログイン'; }
+}
+
+$('logoutBtn').addEventListener('click', ()=>{ session=null; rows=[]; show('vLogin'); });
+
+/* ---------- 管理：一覧 ---------- */
+async function loadList(){
+  const d = await call('list');
+  if(!d.ok){
+    if(d.needLogin){ session=null; show('vLogin'); return; }
+    alert(d.error||'取得に失敗しました'); return;
+  }
+  rows = d.rows;
+  const isHr = session.role==='hr';
+  $('hrPanel').classList.toggle('hidden', !isHr);
+  $('roleLabel').textContent = isHr
+    ? '人事担当者としてログイン中。番号の内容は表示されません。'
+    : '社会保険労務士としてログイン中。提出済みの方の番号を確認できます。';
+  $('listNote').textContent = '受領されないまま' + (d.autoPurgeDays||30) + '日を過ぎた提出データは自動的に削除されます。';
+  renderList();
+  show('vAdmin');
+}
+
+function badge(st){
+  const m = {'未依頼':'b-none','依頼済み':'b-sent','提出済み':'b-sub','完了':'b-done'};
+  return '<span class="badge '+(m[st]||'b-none')+'">'+esc(st)+'</span>';
+}
+
+function renderList(){
+  const isHr = session.role==='hr';
+  document.querySelector('#tbl tbody').innerHTML = rows.map(r=>{
+    let act = '';
+    if(!isHr && r.hasData) act = '<button class="sm" data-reveal="'+esc(r.id)+'">番号を確認</button>';
+    if(isHr && r.status!=='提出済み') act = '<button class="ghost sm" data-remove="'+esc(r.id)+'">削除</button>';
+    return '<tr>'+
+      '<td>'+esc(r.name)+'</td><td class="hint">'+esc(r.email)+'</td>'+
+      '<td>'+badge(r.status)+'</td>'+
+      '<td class="hint">'+esc(r.sentAt||'–')+'</td>'+
+      '<td class="hint">'+esc(r.submittedAt||'–')+'</td>'+
+      '<td>'+(r.deps?r.deps+'名':'–')+'</td>'+
+      '<td>'+act+'</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="hint" style="padding:24px;text-align:center">対象者が登録されていません</td></tr>';
+}
+
+document.querySelector('#tbl').addEventListener('click', async e=>{
+  const rid = e.target.dataset.reveal, rmv = e.target.dataset.remove;
+  if(rid) return reveal(rid);
+  if(rmv){
+    if(!confirm('この対象者を削除しますか。')) return;
+    const d = await call('removeTarget', {id:rmv});
+    if(!d.ok){ alert(d.error); return; }
+    await loadList();
+  }
+});
+
+/* ---------- 人事：登録・送信 ---------- */
+$('addBtn').addEventListener('click', async ()=>{
+  const msg=$('hrMsg'); msg.innerHTML='';
+  const lines = $('bulk').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const targets = lines.map(l=>{ const p=l.split(','); return {name:(p[0]||'').trim(), email:(p[1]||'').trim()}; })
+                       .filter(t=>t.name&&t.email);
+  if(!targets.length){ msg.innerHTML='<div class="err">「氏名,メールアドレス」の形式で入力してください</div>'; return; }
+  const d = await call('addTargets', {targets:targets});
+  if(!d.ok){ msg.innerHTML='<div class="err">'+esc(d.error)+'</div>'; return; }
+  $('bulk').value='';
+  msg.innerHTML='<div class="ok">'+d.added+'名を登録しました'+(d.skipped&&d.skipped.length?'（スキップ：'+esc(d.skipped.join('、'))+'）':'')+'</div>';
+  await loadList();
+});
+
+$('sendBtn').addEventListener('click', async ()=>{
+  const msg=$('hrMsg'); msg.innerHTML='';
+  const ids = rows.filter(r=>r.status==='未依頼'||r.status==='依頼済み').map(r=>r.id);
+  if(!ids.length){ msg.innerHTML='<div class="err">送信対象がいません</div>'; return; }
+  if(!confirm(ids.length+'名に提出依頼メールを送ります。よろしいですか。')) return;
+  const btn=$('sendBtn'); btn.disabled=true; btn.textContent='送信中…';
+  try{
+    const d = await call('sendInvites', {ids:ids});
+    if(!d.ok){ msg.innerHTML='<div class="err">'+esc(d.error)+'</div>'; return; }
+    msg.innerHTML='<div class="ok">'+d.sent+'件を送信しました</div>'+
+      (d.errors&&d.errors.length?'<div class="err">'+esc(d.errors.join(' / '))+'</div>':'');
+    await loadList();
+  } finally { btn.disabled=false; btn.textContent='未依頼・依頼済みの方へ提出依頼メールを送る'; }
+});
+
+/* ---------- 社労士：番号確認 ---------- */
+async function reveal(id){
+  const d = await call('reveal', {id:id});
+  if(!d.ok){ alert(d.error); return; }
+  const r = rows.find(x=>x.id===id);
+  curId = id;
+  $('rName').textContent = r ? r.name + ' 様' : '';
+  let html = '<label>本人</label><div class="num">'+esc(d.self)+'</div>';
+  if(d.deps && d.deps.length){
+    html += '<div style="height:18px"></div><label>扶養家族</label>';
+    html += d.deps.map(x=>
+      '<div style="margin-top:10px"><div style="font-size:13px">'+esc(x.name)+
+      (x.rel?'<span class="hint">（'+esc(x.rel)+'）</span>':'')+'</div>'+
+      '<div class="num">'+esc(x.number)+'</div></div>').join('');
+  }
+  $('rBody').innerHTML = html;
+  $('rMsg').innerHTML = '';
+  show('vReveal');
+}
+
+$('rBack').addEventListener('click', ()=>show('vAdmin'));
+
+$('completeBtn').addEventListener('click', async ()=>{
+  if(!confirm('受領完了として、この方のデータを削除します。取り消せません。よろしいですか。')) return;
+  const btn=$('completeBtn'); btn.disabled=true; btn.textContent='処理中…';
+  try{
+    const d = await call('complete', {id:curId});
+    if(!d.ok){ $('rMsg').innerHTML='<div class="err">'+esc(d.error)+'</div>'; return; }
+    await loadList();
+  } finally { btn.disabled=false; btn.textContent='受領完了（データを削除する）'; }
+});
+
+/* ---------- 起動 ---------- */
+(async function init(){
+  if(!READY){ info('設定が未完了です','接続先URLが設定されていません。担当者にご連絡ください。',false); return; }
+  if(!TOKEN){ info('ご案内','このページは、会社から届いた専用リンクからお進みください。',true); return; }
+  try{
+    const r = await fetch(API, {method:'POST', body: JSON.stringify({action:'checkToken', token:TOKEN})});
+    const d = await r.json();
+    if(d.ok){ $('fName').textContent = d.name + ' 様'; renderDeps(); show('vForm'); return; }
+    if(d.done){ show('vDone'); return; }
+    info('ご案内', d.error || 'リンクが正しくありません。', true);
+  }catch(e){ info('接続できません','通信に失敗しました。電波の良い場所で再度お試しください。',true); }
+})();
+</script>
+</body>
+</html>
