@@ -57,7 +57,15 @@
   .scaleBtn.active { border-color:#00B388; background:#e8f5ef; color:#00B388; }
   .scaleNum { font-size:16px; font-weight:700; }
   .scaleLbl { font-size:9px; text-align:center; line-height:1.15; }
-  @media(max-width:560px){ .scaleLbl { display:none; } }
+  /* 両端の意味を示す帯。広い画面では各ボタンにラベルが出るので不要 */
+  .scaleEnds { display:none; justify-content:space-between; align-items:center; gap:8px;
+               font-size:11px; color:#64748b; font-weight:600; margin-bottom:6px; }
+  .scaleEnds .arrow { flex:1; height:1px; background:#e2e8f0; }
+  .scaleSel { font-size:11.5px; color:#00B388; font-weight:700; margin-top:7px; min-height:16px; text-align:center; }
+  @media(max-width:560px){
+    .scaleLbl { display:none; }
+    .scaleEnds { display:flex; }
+  }
 
   .submitRow { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
   .thanks { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; text-align:center; }
@@ -309,7 +317,7 @@ function formatPeriod(p){
 
 // ===== Apps Script連携設定 =====
 // ↓↓↓ Apps ScriptのデプロイURL(...exec)をここに貼ってください ↓↓↓
-const API_URL = "https://script.google.com/macros/s/AKfycbyUOHILNUwEntua-umzEKPkPzgz7ipKmuNdzEfXeN7jogd2kszkBa9wyIjb0wor9--MIg/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"; // ★★ 要書き換え：以前貼ったApps ScriptのURL(/exec)に戻してください ★★
 // ↑↑↑ Apps ScriptのデプロイURL(...exec)をここに貼ってください ↑↑↑
 
 const USE_REMOTE = API_URL && !API_URL.startsWith("PASTE_");
@@ -779,10 +787,12 @@ function surveyHtml(){
       <div class="qCard">
         <div class="qNum">Q${i+1}</div>
         <div class="qText">${q.text}</div>
+        <div class="scaleEnds"><span>1 全くそう思わない</span><span class="arrow"></span><span>強くそう思う 7</span></div>
         <div class="scaleRow">${SCALE.map(s=>`
           <button class="scaleBtn ${surveyState.answers[q.id]===s.v?"active":""}" data-q="${q.id}" data-v="${s.v}">
             <span class="scaleNum">${s.v}</span><span class="scaleLbl">${s.label}</span>
           </button>`).join("")}</div>
+        <div class="scaleSel">${surveyState.answers[q.id]?SCALE[surveyState.answers[q.id]-1].label:""}</div>
       </div>`;
   }).join("");
   return `
