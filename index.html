@@ -233,7 +233,6 @@ tbody tr:hover{background:var(--green-bg)}
       <div class="nav-group">アカウント</div>
       <div class="nav-item" data-page="invite" onclick="nav('invite')"><span class="ic">✉</span>招待状況</div>
       <div class="nav-group">管理</div>
-      <div class="nav-item" data-page="onboard" onclick="nav('onboard')"><span class="ic">☑</span>オンボーディング面談</div>
       <div class="nav-item" data-page="history" onclick="nav('history')"><span class="ic">🕐</span>変更履歴</div>
       <div class="nav-item" data-page="settings" onclick="nav('settings')"><span class="ic">⚙</span>設定（法人・薬局）</div>
       <div class="nav-group">分析</div>
@@ -408,52 +407,8 @@ tbody tr:hover{background:var(--green-bg)}
   #page-exit .xt-grid2,#page-exit .xt-avoid{grid-template-columns:1fr}
 }
 
-/* ===== オンボーディング面談 ===== */
-#page-onboard .ob-kpis{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-#page-onboard .ob-kpi{background:var(--panel,#fff);border:1px solid var(--line);border-radius:10px;padding:12px 18px;min-width:130px}
-#page-onboard .ob-kpi .lab{font-size:11.5px;color:var(--sub)}
-#page-onboard .ob-kpi .val{font-size:24px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
-#page-onboard .ob-kpi.warn .val{color:#C0453B}
-#page-onboard .ob-kpi.due .val{color:#9A6A05}
-#page-onboard table.ob-tbl{width:100%;border-collapse:collapse;font-size:13px}
-#page-onboard .ob-tbl th,#page-onboard .ob-tbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
-#page-onboard .ob-tbl thead th{font-size:11px;color:var(--sub);font-weight:600;letter-spacing:.03em}
-#page-onboard .ob-tbl tbody tr:hover{background:#FAFBFA}
-#page-onboard .ob-emp{font-weight:700}
-#page-onboard .ob-emp small{display:block;font-weight:400;color:var(--sub);font-size:11px;margin-top:1px}
-#page-onboard .ob-cell{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
-#page-onboard .ob-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap}
-#page-onboard .ob-badge.overdue{background:#FCEFEE;color:#C0453B;border:1px solid #f0cbc6}
-#page-onboard .ob-badge.due{background:#FBF2DD;color:#9A6A05;border:1px solid #ecdcb0}
-#page-onboard .ob-badge.upcoming{background:#EEF3F0;color:#5C6B65;border:1px solid var(--line)}
-#page-onboard .ob-badge.done{background:#EEF1EF;color:#9AA89F;border:1px solid var(--line)}
-#page-onboard .ob-due{font-size:11px;color:var(--sub)}
-#page-onboard .ob-btn{font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--green-d,#1E8A6B);background:#fff;color:var(--green-d,#1E8A6B);cursor:pointer}
-#page-onboard .ob-btn:hover{background:#F1F8F5}
-#page-onboard .ob-btn.undo{border-color:var(--line);color:var(--sub)}
-#page-onboard .ob-done-cell{opacity:.5}
-#page-onboard .ob-done-cell .ob-donemeta{font-size:10.5px;color:var(--sub)}
-#page-onboard .ob-empty{padding:40px;text-align:center;color:var(--sub)}
 </style>
 
-<section id="page-onboard" class="page hidden">
-  <div class="page-head">
-    <div><h2>オンボーディング面談</h2><div class="sub">入社1ヶ月（30日）・3ヶ月（90日）・5ヶ月（150日）の面談予定と実施状況。実施したら「実施済み」を押すとグレーアウトします。</div></div>
-    <div><button class="btn-sm sec" onclick="obRender()">最新に更新</button></div>
-  </div>
-
-  <div class="ob-kpis">
-    <div class="ob-kpi warn"><div class="lab">期限超過</div><div class="val" id="obKOverdue">0</div></div>
-    <div class="ob-kpi due"><div class="lab">実施待ち（7日以内）</div><div class="val" id="obKDue">0</div></div>
-    <div class="ob-kpi"><div class="lab">対象者</div><div class="val" id="obKEmps">0</div></div>
-  </div>
-
-  <div id="obEmpty" class="ob-empty hidden">対象となる在籍者がいません。従業員に入社日が登録されると、ここに面談予定が表示されます。</div>
-
-  <div id="obContent" style="overflow-x:auto">
-    <table class="ob-tbl" id="obTable"></table>
-  </div>
-</section>
 
 <section id="page-exit" class="page hidden">
   <div class="page-head">
@@ -811,7 +766,6 @@ function nav(page){
   if(page==="history") loadAllHistory();
   if(page==="self") renderSelf();
   if(page==="exit") xtRender();
-  if(page==="onboard") obRender();
 }
 
 /* ---- Dashboard ---- */
@@ -1561,70 +1515,6 @@ function toast(t){const el=document.getElementById("toast");el.textContent=t;el.
   if(params.get("invite")){showInvite(params.get("invite"));return;}
   if(restoreSession()){enterApp();}
 })();
-</script>
-<script>
-/* ============================================================
-   オンボーディング面談モジュール
-   - api('onboardList') で在籍者の面談予定・実施状況を取得
-   - 実施済みボタンで api('onboardMark') を呼び、グレーアウト
-   ============================================================ */
-let OB_DATA=null;
-async function obRender(){
-  const r = await api('onboardList',{});
-  if(!r || !r.ok){ toast((r&&r.error)||'面談データの取得に失敗しました'); return; }
-  OB_DATA=r;
-  const rows=r.rows||[];
-  const stages=r.stages||[];
-  // KPI集計
-  let overdue=0, due=0;
-  rows.forEach(emp=>emp.stages.forEach(s=>{ if(s.status==='overdue')overdue++; else if(s.status==='due')due++; }));
-  document.getElementById('obKOverdue').textContent=overdue;
-  document.getElementById('obKDue').textContent=due;
-  document.getElementById('obKEmps').textContent=rows.length;
-
-  const empty=rows.length===0;
-  document.getElementById('obEmpty').classList.toggle('hidden', !empty);
-  document.getElementById('obContent').classList.toggle('hidden', empty);
-  if(empty) return;
-
-  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const badgeLabel={overdue:'期限超過',due:'実施待ち',upcoming:'予定',done:'実施済み'};
-  function cell(emp, s){
-    if(s.status==='done'){
-      return `<div class="ob-cell ob-done-cell">
-        <span class="ob-badge done">実施済み</span>
-        <span class="ob-donemeta">${esc(s.doneDate)}${s.doneBy?'／'+esc(s.doneBy):''}</span>
-        <button class="ob-btn undo" onclick="obMark('${emp.empId}','${s.key}',false)">取消</button>
-      </div>`;
-    }
-    return `<div class="ob-cell">
-      <span class="ob-badge ${s.status}">${badgeLabel[s.status]}</span>
-      <span class="ob-due">予定 ${esc(s.dueDate)}</span>
-      <button class="ob-btn" onclick="obMark('${emp.empId}','${s.key}',true)">実施済みにする</button>
-    </div>`;
-  }
-  let html='<thead><tr><th>従業員</th><th>入社日</th>'+stages.map(st=>`<th>${esc(st.label)}</th>`).join('')+'</tr></thead><tbody>';
-  rows.forEach(emp=>{
-    html+=`<tr>
-      <td><div class="ob-emp">${esc(emp.name)}<small>${esc(emp.corp)}／${esc(emp.store)}／${esc(emp.role)}</small></div></td>
-      <td class="ob-due">${esc(emp.joinDate)}</td>
-      ${emp.stages.map(s=>`<td>${cell(emp,s)}</td>`).join('')}
-    </tr>`;
-  });
-  html+='</tbody>';
-  document.getElementById('obTable').innerHTML=html;
-}
-let obMarking=false;
-async function obMark(empId, stage, done){
-  if(obMarking) return;
-  if(!done && !confirm('この面談の実施記録を取り消しますか？')) return;
-  obMarking=true;
-  const r = await api('onboardMark',{empId, stage, done});
-  obMarking=false;
-  if(!r || !r.ok){ toast((r&&r.error)||'更新に失敗しました'); return; }
-  toast(done?'実施済みにしました':'取り消しました');
-  await obRender();
-}
 </script>
 <script>
 /* 検証用サンプル（架空）。本番不要ならこのscriptごと削除可 */
