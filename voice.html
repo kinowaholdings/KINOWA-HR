@@ -239,13 +239,11 @@
 </footer>
 
 <script>
-// 店舗一覧。追加・改名・削除はストレージに永続化。
-const DEFAULT_STORES = ["ケアの木","ほしの木","くりの木","お茶の木","はれの木","にじの木","ゆずの木","サン薬局"];
-let STORES;
-try {
-  const saved = JSON.parse(localStorage.getItem("ps_stores_v1") || "null");
-  STORES = Array.isArray(saved) && saved.length>0 ? saved : DEFAULT_STORES.slice();
-} catch(e){ STORES = DEFAULT_STORES.slice(); }
+// 店舗一覧。正はサーバー(stores シート)。ブラウザ内の古い一覧は使わない。
+// 旧名称が残っていると「登録されていない店舗です」と弾かれるため。
+const DEFAULT_STORES = [];
+let storesLoaded = false;
+let STORES = DEFAULT_STORES.slice();   // サーバーから取得するまで空。古い一覧は読み込まない
 // 店舗一覧の保存: リモート有効時はApps Scriptへ、無効時はlocalStorageへ
 async function saveStores(){
   if(typeof USE_REMOTE !== "undefined" && USE_REMOTE){
@@ -328,16 +326,21 @@ let dataLoadError = null;
 
 // 店舗マスタの取得(認証不要)。アンケート画面の表示に必要
 async function loadStores(){
-  if(!USE_REMOTE) return;
+  if(!USE_REMOTE){ storesLoaded = true; return; }
   try {
     const res = await fetch(API_URL + "?action=stores", { method:"GET" });
     const data = await res.json();
     if(data.ok && Array.isArray(data.stores) && data.stores.length>0){
       STORES = data.stores;
+      storesLoaded = true;
+      // 端末に残っている古い一覧を捨てる(旧名称での送信を防ぐ)
+      try { localStorage.removeItem("ps_stores_v1"); } catch(e){}
+      // 取得前に選ばれていた店舗が現行に無ければ選び直させる
+      if(surveyState && surveyState.store && !STORES.includes(surveyState.store)) surveyState.store = "";
       if(!STORES.includes(managerStore)) managerStore = STORES[0];
       if(!STORES.includes(quadStoreSel)) quadStoreSel = STORES[0];
     }
-  } catch(err){ /* 店舗取得に失敗しても初期値で動作させる */ }
+  } catch(err){ /* 取得できなかった場合は storesLoaded を立てない */ }
 }
 
 // 回答データの取得。★管理者トークンが必須(URLを知るだけでは読めない)
@@ -800,7 +803,10 @@ function surveyHtml(){
     <p style="color:#52677d;font-size:14px;line-height:1.7;margin-bottom:8px">このアンケートは<strong>完全匿名</strong>です。氏名・職種・端末情報は一切記録せず、記録されるのは所属店舗と実施月だけです。人事台帳とは別のデータベースに保存され、人事評価には一切使われません。集計は回答が5件以上集まった店舗のみ表示されます。</p>
     <div class="metaRow">
       <label class="field"><span class="fieldLabel">所属店舗 <span class="req">*</span></span>
-        <select id="svStore"><option value="">選択してください</option>${STORES.map(s=>`<option value="${s}" ${surveyState.store===s?"selected":""}>${s}</option>`).join("")}</select>
+        ${storesLoaded
+          ? `<select id="svStore"><option value="">選択してください</option>${STORES.map(s=>`<option value="${s}" ${surveyState.store===s?"selected":""}>${s}</option>`).join("")}</select>`
+          : `<select disabled><option>店舗を読み込んでいます…</option></select>
+             <div style="font-size:12px;color:#C0453B;margin-top:6px">読み込めない場合は、通信環境を確認して画面を再読み込みしてください。</div>`}
       </label>
       <label class="field"><span class="fieldLabel">実施月</span>
         <select id="svPeriod">${PERIODS.map(p=>`<option value="${p}" ${surveyState.period===p?"selected":""}>${formatPeriod(p)}</option>`).join("")}</select>
