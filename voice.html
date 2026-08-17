@@ -360,6 +360,9 @@ async function loadResponses(){
     const data = await res.json();
     if(data.ok){
       if(Array.isArray(data.responses)) responses = data.responses;
+      // 今月に回答が無い場合は、回答のある最新月に切り替える
+      const lp = latestPeriodWithData();
+      if(lp && !responses.some(r=>r.period===dashPeriod)) dashPeriod = lp;
       if(Array.isArray(data.stores) && data.stores.length>0){
         STORES = data.stores;
         if(!STORES.includes(managerStore)) managerStore = STORES[0];
@@ -468,6 +471,12 @@ let view = "home";
 let role = "admin";
 let managerStore = STORES[0];
 let dashPeriod = currentPeriod();
+// 回答が存在する最新の月を初期表示にする。
+// 既定の「今月」に回答が無いと、集計が空に見えてしまうため。
+function latestPeriodWithData(){
+  const ps = [...new Set((responses||[]).map(r=>r.period).filter(Boolean))].sort();
+  return ps.length ? ps[ps.length-1] : null;
+}
 let quadStoreSel = STORES[0]; // 4象限マップで表示する店舗
 // ===== 管理者認証 =====
 // 認証はサーバー(Apps Script)側で行う。パスワードはこのファイルに含めない。
