@@ -633,7 +633,7 @@ const DEP_RELS = ["配偶者","子","父","母","祖父","祖母","兄弟姉妹"
    API層: GAS_ENDPOINT へ fetch でリクエストする
    GAS側はこのaction名に対応する実装を後で作ります(ステップ2)
    ============================================================ */
-async function api(action, payload){
+async function api(action, payload, _retry){
   if(!GAS_ENDPOINT){
     return {ok:false, error:"接続先が未設定です（GAS_ENDPOINT）。管理者にお問い合わせください。"};
   }
@@ -641,11 +641,17 @@ async function api(action, payload){
     const res = await fetch(GAS_ENDPOINT,{method:"POST",redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body:JSON.stringify({action,payload,token:(session&&session.token)||""})});
+    if(!res.ok) throw new Error("HTTP " + res.status);
     const r = await res.json();
     if(r && r.needLogin){ clearSession(); location.reload(); }
     return r;
   }catch(err){
-    return {ok:false, error:"通信に失敗しました。ネットワークをご確認ください"};
+    // Apps Script は応答が大きいと別ドメインへ転送する。この転送が稀に失敗するため一度だけ再試行する
+    if(!_retry){
+      await new Promise(r=>setTimeout(r, 1200));
+      return api(action, payload, true);
+    }
+    return {ok:false, error:"通信に失敗しました（"+action+"）: "+(err && err.message ? err.message : "unknown")};
   }
 }
 
@@ -743,7 +749,11 @@ async function enterApp(){
   if(session.role==="admin"){
     document.getElementById("adminNav").classList.remove("hidden");
     fillSelect("fCorp",CORPS); fillSelect("fStore",STORES);
-    const r=await api("list",{}); EMPS=r.emps;
+    const r=await api("list",{});
+    EMPS = (r && Array.isArray(r.emps)) ? r.emps : [];
+    if(!r || !r.ok){
+      toast("従業員データを取得できませんでした：" + ((r&&r.error)||"原因不明"));
+    }
     nav("dash");
   } else {
     document.getElementById("adminNav").classList.add("hidden");
@@ -770,7 +780,7 @@ function nav(page){
 
 /* ---- Dashboard ---- */
 function renderDash(){
-  const live=EMPS.filter(e=>e.deleted!==true);
+  const live=(EMPS||[]).filter(e=>e.deleted!==true);
   const active=live.filter(e=>e.status==="在籍").length;
   const mn=live.filter(e=>e.mnCollected).length;
   const acc=live.filter(e=>e.accountStatus==="active").length;
