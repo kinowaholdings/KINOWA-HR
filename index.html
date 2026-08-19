@@ -637,22 +637,28 @@ async function api(action, payload, _retry){
   if(!GAS_ENDPOINT){
     return {ok:false, error:"接続先が未設定です（GAS_ENDPOINT）。管理者にお問い合わせください。"};
   }
+  // Apps Script は応答を別ドメインへ転送してから返す。この転送が応答しないまま
+  // 長時間ぶら下がることがあるため、8秒で打ち切って即座にやり直す。
+  const ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(()=>ctrl.abort(), 8000) : null;
   try{
-    const res = await fetch(GAS_ENDPOINT,{method:"POST",redirect:"follow",
+    const opt = {method:"POST",redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify({action,payload,token:(session&&session.token)||""})});
+      body:JSON.stringify({action,payload,token:(session&&session.token)||""})};
+    if(ctrl) opt.signal = ctrl.signal;
+    const res = await fetch(GAS_ENDPOINT, opt);
     // 注意: Apps Script は404を返しつつ本文は正常なJSONということがある。
     // res.ok で弾くと動いていた通信まで失敗するため、必ず本文の解析を試みる。
     const r = await res.json();
     if(r && r.needLogin){ clearSession(); location.reload(); }
     return r;
   }catch(err){
-    // Apps Script は応答が大きいと別ドメインへ転送する。この転送が稀に失敗するため一度だけ再試行する
-    if(!_retry){
-      await new Promise(r=>setTimeout(r, 1200));
-      return api(action, payload, true);
-    }
+    // 転送に失敗した場合は待たずにやり直す(最大2回)
+    if(!_retry) return api(action, payload, 1);
+    if(_retry === 1) return api(action, payload, 2);
     return {ok:false, error:"通信に失敗しました（"+action+"）: "+(err && err.message ? err.message : "unknown")};
+  }finally{
+    if(timer) clearTimeout(timer);
   }
 }
 
@@ -743,14 +749,17 @@ async function enterApp(){
   rc.textContent=session.role==="admin"?"管理者":"一般";
   rc.className="role-chip "+(session.role==="admin"?"role-admin":"role-staff");
 
-  // 法人・薬局マスタを読み込む
-  const mr=await api("masters",{});
+  // マスタと従業員一覧を同時に取得する(直列だと待ち時間が2倍になるため)
+  const isAdmin = session.role==="admin";
+  const [mr, r] = await Promise.all([
+    api("masters",{}),
+    isAdmin ? api("list",{}) : Promise.resolve(null)
+  ]);
   if(mr&&mr.ok){ CORPS=mr.corps||[]; STORES=mr.stores||[]; }
 
-  if(session.role==="admin"){
+  if(isAdmin){
     document.getElementById("adminNav").classList.remove("hidden");
     fillSelect("fCorp",CORPS); fillSelect("fStore",STORES);
-    const r=await api("list",{});
     EMPS = (r && Array.isArray(r.emps)) ? r.emps : [];
     if(!r || !r.ok){
       toast("従業員データを取得できませんでした：" + ((r&&r.error)||"原因不明"));
