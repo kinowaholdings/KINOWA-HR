@@ -641,7 +641,8 @@ async function api(action, payload, _retry){
     const res = await fetch(GAS_ENDPOINT,{method:"POST",redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body:JSON.stringify({action,payload,token:(session&&session.token)||""})});
-    if(!res.ok) throw new Error("HTTP " + res.status);
+    // 注意: Apps Script は404を返しつつ本文は正常なJSONということがある。
+    // res.ok で弾くと動いていた通信まで失敗するため、必ず本文の解析を試みる。
     const r = await res.json();
     if(r && r.needLogin){ clearSession(); location.reload(); }
     return r;
