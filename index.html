@@ -21,6 +21,7 @@ body{font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic Medium","M
 button{font-family:inherit;cursor:pointer}
 input,select{font-family:inherit;font-size:14px}
 .hidden{display:none!important}
+.branch-hint{font-size:11.5px;color:var(--sub);margin-top:4px;min-height:15px}
 
 /* ===== Auth ===== */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--green-bg)}
@@ -609,6 +610,7 @@ tbody tr:hover{background:var(--green-bg)}
 
 <div class="toast" id="toast"></div>
 
+<script src="zengin.js"></script>
 <script>
 /* ============================================================
    ★ 本番接続の設定 ★
@@ -625,6 +627,104 @@ let CORPS = [];
 let STORES = [];
 const COMMUTES = ["車","公共交通機関","その他"];
 const ACCT_TYPES = ["普通","当座"];
+// 給与振込先の金融機関。zengin.js（全国1,146行・28,931支店）を使う。
+// 読み込みに失敗した場合に備え、よく使う銀行だけを控えとして持つ。
+const BANK_FALLBACK = [
+  ["0009","三井住友銀行",""],["9900","ゆうちょ銀行",""],["0005","三菱UFJ銀行",""],
+  ["0158","京都銀行",""],["0036","楽天銀行",""],["0161","池田泉州銀行",""],
+  ["1611","京都中央信用金庫",""],["0010","りそな銀行",""],["1610","京都信用金庫",""],
+  ["0001","みずほ銀行",""]
+];
+function bankList(){ return (window.ZENGIN && window.ZENGIN.banks) || BANK_FALLBACK; }
+function branchMap(code){ return (window.ZENGIN && window.ZENGIN.branches && window.ZENGIN.branches[code]) || null; }
+function bankByName(n){ return bankList().find(b => b[1] === n) || null; }
+
+// 銀行名の入力欄。打つたびに候補を絞り込む（全件をDOMに置くと重いので都度作り直す）
+function bankSel(id, cur){
+  return `<input id="${id}" list="${id}_list" value="${cur||""}" autocomplete="off"
+            placeholder="銀行名・カナ・コードで検索" oninput="bankSuggest('${id}')" onblur="bankFix('${id}')">`
+    + `<datalist id="${id}_list"></datalist>`;
+}
+function bankSuggest(id){
+  const el=document.getElementById(id), dl=document.getElementById(id+"_list");
+  if(!el||!dl) return;
+  const v=el.value.trim();
+  let hit;
+  if(!v){ hit=bankList().slice(0,30); }
+  else if(/^\d{1,4}$/.test(v)){ hit=bankList().filter(b=>b[0].indexOf(v)===0).slice(0,30); }
+  else { hit=bankList().filter(b=>b[1].indexOf(v)>=0||(b[2]&&b[2].indexOf(v)>=0)).slice(0,30); }
+  dl.innerHTML=hit.map(b=>`<option value="${b[1]}">${b[0]}</option>`).join("");
+  const bid=id.replace("bankName","bankBranch");
+  const brEl=document.getElementById(bid);
+  if(brEl) branchSuggest(bid, id);
+}
+// 入力欄を離れたとき、コードや略称を正式名称に整える
+function bankFix(id){
+  const el=document.getElementById(id); if(!el) return;
+  const v=el.value.trim(); if(!v) return;
+  if(/^\d{3,4}$/.test(v)){
+    const c=("0000"+v).slice(-4);
+    const b=bankList().find(x=>x[0]===c);
+    if(b){ el.value=b[1]; branchSuggest(id.replace("bankName","bankBranch"), id); return; }
+  }
+  if(bankByName(v)) { branchSuggest(id.replace("bankName","bankBranch"), id); return; }
+  const hit=bankList().filter(b=>b[1].indexOf(v)>=0||(b[2]&&b[2].indexOf(v)>=0));
+  if(hit.length===1) el.value=hit[0][1];
+  branchSuggest(id.replace("bankName","bankBranch"), id);
+}
+function bankVal(id){ const el=document.getElementById(id); return el?el.value.trim():""; }
+
+// 支店の入力欄。銀行が決まると、その銀行の支店だけが候補になる
+function branchSel(id, cur, bankId){
+  return `<input id="${id}" list="${id}_list" value="${cur||""}" autocomplete="off"
+            placeholder="支店名かコードで検索" oninput="branchSuggest('${id}','${bankId}')"
+            onblur="branchFix('${id}','${bankId}')">`
+    + `<datalist id="${id}_list"></datalist>`
+    + `<div id="${id}_hint" class="branch-hint"></div>`;
+}
+function branchSuggest(id, bankId){
+  const el=document.getElementById(id), dl=document.getElementById(id+"_list");
+  if(!el||!dl) return;
+  const bk=bankByName((document.getElementById(bankId)||{}).value||"");
+  const map=bk?branchMap(bk[0]):null;
+  if(!map){ dl.innerHTML=""; branchHint(id,bankId); return; }
+  const v=el.value.trim();
+  let keys=Object.keys(map);
+  if(v){
+    keys = /^\d{1,3}$/.test(v) ? keys.filter(k=>k.indexOf(v)===0)
+                               : keys.filter(k=>map[k].indexOf(v)>=0);
+  }
+  dl.innerHTML=keys.slice(0,30).map(k=>`<option value="${k}">${map[k]}支店</option>`).join("");
+  branchHint(id,bankId);
+}
+// 支店名で入力された場合はコードに直す（保存はコードのまま）
+function branchFix(id, bankId){
+  const el=document.getElementById(id); if(!el) return;
+  const v=el.value.trim(); if(!v){ branchHint(id,bankId); return; }
+  const bk=bankByName((document.getElementById(bankId)||{}).value||"");
+  const map=bk?branchMap(bk[0]):null;
+  if(map){
+    if(/^\d{1,3}$/.test(v)){ const c=("000"+v).slice(-3); if(map[c]) el.value=c; }
+    else{
+      const hit=Object.keys(map).filter(k=>map[k]===v);
+      const part=hit.length?hit:Object.keys(map).filter(k=>map[k].indexOf(v)>=0);
+      if(part.length===1) el.value=part[0];
+    }
+  }
+  branchHint(id,bankId);
+}
+// 入力されたコードに対応する支店名を下に表示する
+function branchHint(id, bankId){
+  const el=document.getElementById(id), h=document.getElementById(id+"_hint");
+  if(!el||!h) return;
+  const bk=bankByName((document.getElementById(bankId)||{}).value||"");
+  const map=bk?branchMap(bk[0]):null;
+  const v=el.value.trim();
+  if(!map||!v){ h.textContent=""; return; }
+  const c=/^\d{1,3}$/.test(v)?("000"+v).slice(-3):v;
+  h.textContent = map[c] ? map[c]+"支店" : "※この銀行に該当する支店コードがありません";
+  h.style.color = map[c] ? "var(--sub)" : "#C0453B";
+}
 const ROLES = ["薬剤師","調剤事務","一般事務","営業","その他"];
 // 扶養家族の続柄（年末調整で使う一般的な区分）
 const DEP_RELS = ["配偶者","子","父","母","祖父","祖母","兄弟姉妹","その他"];
@@ -893,8 +993,8 @@ function drawForm(e,title){
 
     <div class="sec-title">給与振込口座</div>
     <div class="frow two">
-      <div><label>銀行名</label><input id="f_bankName" value="${e.bankName||""}"></div>
-      <div><label>支店名</label><input id="f_bankBranch" value="${e.bankBranch||""}"></div>
+      <div><label>銀行名</label>${bankSel("f_bankName", e.bankName||"")}</div>
+      <div><label>支店</label>${branchSel("f_bankBranch", e.bankBranch||"", "f_bankName")}</div>
     </div>
     <div class="frow two">
       <div><label>種別</label>${sel("f_acctType",ACCT_TYPES,e.acctType||"普通")}</div>
@@ -1172,7 +1272,7 @@ async function saveEmp(){
     leaveDate:(stVal==="退職"?val("f_leave"):""),tel:normalizeDigits(val("f_tel")),
     email:val("f_email").trim().toLowerCase(),address:val("f_address"),
     commute:val("f_commute"),commuteNote:val("f_commuteNote"),
-    bankName:val("f_bankName"),bankBranch:val("f_bankBranch"),acctType:val("f_acctType"),
+    bankName:bankVal("f_bankName"),bankBranch:val("f_bankBranch"),acctType:val("f_acctType"),
     acctNo:normalizeDigits(val("f_acctNo")),acctHolder:val("f_acctHolder"),
     empInsNo:val("f_empInsNo"),pensionNo:val("f_pensionNo"),
     mnCollected:document.getElementById("f_mn").checked,
@@ -1457,8 +1557,8 @@ async function renderSelf(){
 
     <div class="sec-title">給与振込口座</div>
     <div class="frow two">
-      <div><label>銀行名</label><input id="s_bankName" value="${e.bankName||""}"></div>
-      <div><label>支店名</label><input id="s_bankBranch" value="${e.bankBranch||""}"></div>
+      <div><label>銀行名</label>${bankSel("s_bankName", e.bankName||"")}</div>
+      <div><label>支店</label>${branchSel("s_bankBranch", e.bankBranch||"", "s_bankName")}</div>
     </div>
     <div class="frow two">
       <div><label>種別</label>${sel("s_acctType",ACCT_TYPES,e.acctType||"普通")}</div>
@@ -1510,7 +1610,7 @@ async function saveMe(){
   const e=Object.assign({}, selfEmp, {
     name:val("s_name").trim(),bizName:val("s_bizName").trim(),tel:normalizeDigits(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
     commute:val("s_commute"),commuteNote:val("s_commuteNote"),
-    bankName:val("s_bankName"),bankBranch:val("s_bankBranch"),acctType:val("s_acctType"),
+    bankName:bankVal("s_bankName"),bankBranch:val("s_bankBranch"),acctType:val("s_acctType"),
     acctNo:normalizeDigits(val("s_acctNo")),acctHolder:val("s_acctHolder"),
     empInsNo:val("s_empInsNo"),pensionNo:val("s_pensionNo"),
     hasDependents:document.getElementById("s_hasDep").checked,
