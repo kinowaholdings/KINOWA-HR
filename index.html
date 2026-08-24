@@ -276,7 +276,8 @@ tbody tr:hover{background:var(--green-bg)}
           <div class="cnt"><span id="bulkCount">0</span> 名を選択中</div>
           <div class="acts">
             <button class="btn-sm sec" onclick="clearChk()">選択を解除</button>
-            <button class="btn-sm" onclick="sendInviteBulk()">招待メールを一括送信</button>
+            <button class="btn-sm sec" onclick="sendInviteBulk('confirm')" title="住所や口座がすでに登録されている方へ、内容確認をお願いする文面で送ります">登録済みの方へ確認依頼</button>
+            <button class="btn-sm" onclick="sendInviteBulk('new')" title="新しく入った方へ、情報の入力をお願いする文面で送ります">新規の方へ入力依頼</button>
           </div>
         </div>
         <div class="tablewrap">
@@ -1098,18 +1099,28 @@ function clearChk(){
   updateBulkBar();
 }
 let bulkSending=false;
-async function sendInviteBulk(){
+// mode: 'confirm'=登録済みの方へ確認依頼 / 'new'=新規の方へ入力依頼
+async function sendInviteBulk(mode){
   if(bulkSending) return;
+  mode = (mode==='confirm') ? 'confirm' : 'new';
   const ids=checkedIds();
   if(!ids.length) return toast("送信する人を選んでください");
-  // 誰に送るか名前を出して確認（誤爆防止）
-  const names=ids.map(id=>{const e=EMPS.find(x=>x.id===id);return e?(e.name||id):id;});
+  const label = mode==='confirm' ? '登録内容のご確認のお願い' : 'アカウント登録のご案内';
+
+  // 選んだ人の入力状況と用途が食い違っていないか知らせる
+  const sel=ids.map(id=>EMPS.find(x=>x.id===id)).filter(Boolean);
+  const done=sel.filter(isProfileComplete).length, todo=sel.length-done;
+  let warn="";
+  if(mode==='confirm' && todo>0) warn=`\n※ 未入力の方が${todo}名含まれています。`;
+  if(mode==='new' && done>0)     warn=`\n※ 入力済みの方が${done}名含まれています。`;
+
+  const names=sel.map(e=>e.name||e.id);
   const preview=names.slice(0,5).join("、")+(names.length>5?` ほか${names.length-5}名`:"");
-  if(!confirm(`${ids.length}名に招待メールを送信します。\n\n${preview}\n\nよろしいですか？`)) return;
+  if(!confirm(`${ids.length}名に「${label}」を送信します。\n\n${preview}${warn}\n\nよろしいですか？`)) return;
 
   bulkSending=true;
   toast(`${ids.length}名に送信中…`);
-  const r=await api("sendInviteBulk",{empIds:ids});
+  const r=await api("sendInviteBulk",{empIds:ids, mode:mode});
   bulkSending=false;
   if(!r||!r.ok){ return toast((r&&r.error)||"一括送信に失敗しました"); }
 
