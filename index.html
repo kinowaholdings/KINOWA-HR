@@ -822,6 +822,10 @@ function val(id){return document.getElementById(id).value;}
 function normalizeDigits(s){ // 全角数字→半角、ハイフン以外の記号や空白除去はしない
   return String(s||"").replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
 }
+// 電話番号は数字だけで保存する。入力者によってハイフンの有無が分かれるため。
+function normalizeTel(s){
+  return normalizeDigits(s).replace(/[^0-9]/g,"");
+}
 function validateEmp(e){
   const errs=[];
   if(!e.name||!e.name.trim()) errs.push("氏名は必須です");
@@ -1280,7 +1284,7 @@ async function saveEmp(){
   const emp={
     id:editingId,name:val("f_name").trim(),bizName:val("f_bizName").trim(),corp:val("f_corp"),store:val("f_store"),role:val("f_role"),
     status:stVal,joinDate:val("f_join"),birthday:val("f_birthday"),
-    leaveDate:(stVal==="退職"?val("f_leave"):""),tel:normalizeDigits(val("f_tel")),
+    leaveDate:(stVal==="退職"?val("f_leave"):""),tel:normalizeTel(val("f_tel")),
     email:val("f_email").trim().toLowerCase(),address:val("f_address"),
     commute:val("f_commute"),commuteNote:val("f_commuteNote"),
     bankName:bankVal("f_bankName"),bankBranch:val("f_bankBranch"),acctType:val("f_acctType"),
@@ -1552,7 +1556,7 @@ async function renderSelf(){
     <div class="frow"><label>ビジネスネーム（旧姓等・任意）</label><input id="s_bizName" value="${e.bizName||""}" placeholder="職場で使う呼称。入籍後も旧姓で働く場合など"></div>
     <div class="frow two">
       <div><label>メールアドレス（ログインID）</label><input id="s_email" value="${e.email||""}" readonly style="background:#eef0ef"></div>
-      <div><label>電話</label><input id="s_tel" value="${e.tel||""}" placeholder="090-0000-0000"></div>
+      <div><label>電話</label><input id="s_tel" value="${e.tel||""}" placeholder="09000000000（ハイフンなし）"></div>
     </div>
     <div class="frow two">
       <div><label>生年月日</label><input id="s_birthday" type="date" value="${e.birthday||""}"></div>
@@ -1619,7 +1623,7 @@ async function changeMyPassword(){
 }
 async function saveMe(){
   const e=Object.assign({}, selfEmp, {
-    name:val("s_name").trim(),bizName:val("s_bizName").trim(),tel:normalizeDigits(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
+    name:val("s_name").trim(),bizName:val("s_bizName").trim(),tel:normalizeTel(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
     commute:val("s_commute"),commuteNote:val("s_commuteNote"),
     bankName:bankVal("s_bankName"),bankBranch:val("s_bankBranch"),acctType:val("s_acctType"),
     acctNo:normalizeDigits(val("s_acctNo")),acctHolder:val("s_acctHolder"),
