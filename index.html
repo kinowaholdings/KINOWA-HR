@@ -754,9 +754,15 @@ async function api(action, payload, _retry){
     if(r && r.needLogin){ clearSession(); location.reload(); }
     return r;
   }catch(err){
-    // 転送に失敗した場合は待たずにやり直す(最大2回)
-    if(!_retry) return api(action, payload, 1);
-    if(_retry === 1) return api(action, payload, 2);
+    // 書き込みを伴う操作は、応答が届かなくてもサーバー側では成功していることがある。
+    // やり直すと二重に保存されるため、再試行は読み取り系だけに限る。
+    const WRITE = ["save","saveMe","softDelete","restore","hardDelete","adminReset",
+                   "sendInvite","sendInviteBulk","setPassword","changePassword",
+                   "masterAdd","masterRename","masterDelete","revokeInvite",
+                   "saveNotifyEmails","issueExitToken","sendExitSurvey","submitExit"];
+    const canRetry = WRITE.indexOf(action) < 0;
+    if(canRetry && !_retry) return api(action, payload, 1);
+    if(canRetry && _retry === 1) return api(action, payload, 2);
     return {ok:false, error:"通信に失敗しました（"+action+"）: "+(err && err.message ? err.message : "unknown")};
   }finally{
     if(timer) clearTimeout(timer);
@@ -1596,7 +1602,7 @@ async function renderSelf(){
     </div>
 
     <div style="margin-top:24px;display:flex;gap:10px">
-      <button class="btn-sm" onclick="saveMe()">入力内容を保存</button>
+      <button class="btn-sm" id="saveMeBtn" onclick="saveMe()">入力内容を保存</button>
     </div>
 
     <div class="sec-title" style="margin-top:30px">パスワードの変更</div>
@@ -1621,7 +1627,10 @@ async function changeMyPassword(){
   document.getElementById("pc_new2").value="";
   toast("パスワードを変更しました");
 }
+let savingMe=false;
 async function saveMe(){
+  if(savingMe) return;                       // 処理中の再送を無視する
+  const btn=document.getElementById("saveMeBtn");
   const e=Object.assign({}, selfEmp, {
     name:val("s_name").trim(),bizName:val("s_bizName").trim(),tel:normalizeTel(val("s_tel")),address:val("s_address"),birthday:val("s_birthday"),
     commute:val("s_commute"),commuteNote:val("s_commuteNote"),
@@ -1633,10 +1642,21 @@ async function saveMe(){
   });
   const errs=validateEmp(e);
   if(errs.length){return toast(errs[0]);}
-  const r=await api("saveMe",{emp:e});
-  if(!r||!r.ok){return toast((r&&r.error)||"保存に失敗しました");}
-  selfEmp=r.emp||e;
-  await renderSelf();toast("保存しました");
+
+  savingMe=true;
+  if(btn){ btn.disabled=true; btn.textContent="保存中…"; }
+  try{
+    const r=await api("saveMe",{emp:e});
+    if(!r||!r.ok){ toast((r&&r.error)||"保存に失敗しました"); return; }
+    selfEmp=r.emp||e;
+    await renderSelf();          // 画面を作り直すのでボタンも新しくなる
+    toast("保存しました");
+  } finally {
+    savingMe=false;
+    // renderSelf でボタンが差し替わっている場合に備え、取り直して戻す
+    const b=document.getElementById("saveMeBtn");
+    if(b){ b.disabled=false; b.textContent="入力内容を保存"; }
+  }
 }
 
 function logout(){clearSession();location.reload();}
