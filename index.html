@@ -1050,7 +1050,16 @@ function drawForm(e,title){
     <button class="btn-sm sec" onclick="xtIssueLink('${e.id}')">アンケート回答リンクを発行</button>
     <div id="xtLinkBox" style="margin-top:10px"></div>
     `:''}
-    ${e.email?`<button class="btn-sm sec" onclick="adminResetPw('${e.id}','${e.email}')">この人にパスワード再設定メールを送る</button>`:`<div class="readonly-note">メール未設定です。メールを入力して保存すると招待を送れます。</div>`}
+    ${e.email?`
+    <div class="readonly-note" style="margin-top:8px">
+      招待メールは用途で文面が変わります。<b>新規</b>＝住所や口座の入力を依頼／<b>確認</b>＝登録済み内容の確認を依頼。
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn-sm" onclick="inviteFromDrawer('${e.id}','${e.email}','new')">招待メールを送る（新規の入力依頼）</button>
+      <button class="btn-sm sec" onclick="inviteFromDrawer('${e.id}','${e.email}','confirm')">招待メールを送る（登録内容の確認）</button>
+      <button class="btn-sm sec" onclick="adminResetPw('${e.id}','${e.email}')">パスワード再設定メールを送る</button>
+    </div>
+    `:`<div class="readonly-note">メール未設定です。メールを入力して保存すると招待を送れます。</div>`}
 
     <div class="sec-title">変更履歴</div>
     <div class="hist" id="empHist"><div class="who2">読み込み中…</div></div>
@@ -1215,6 +1224,25 @@ async function loadHistory(id){
   box.innerHTML=items.map(h=>
     `<div class="hist-item"><div class="when">${h.when}</div><div class="what">${h.what}</div><div class="who2">by ${h.who}</div></div>`).join("");
 }
+// スタッフ詳細から招待メールを送る（再送も同じ経路）。
+// 承諾待ちの招待が残っていると重複するため、いったん取り消してから送り直す。
+let invitingFromDrawer=false;
+async function inviteFromDrawer(id, email, mode){
+  if(invitingFromDrawer) return;
+  const label = mode==='confirm' ? '登録内容のご確認のお願い' : 'アカウント登録のご案内';
+  if(!confirm(email+" に「"+label+"」を送りますか?")) return;
+  invitingFromDrawer=true;
+  try{
+    await api("revokeInvite",{email});          // 期限切れや未承諾の招待を片付ける
+    const r=await api("sendInvite",{empId:id, email, mode});
+    if(!r||!r.ok){ toast((r&&r.error)||"送信に失敗しました"); return; }
+    toast("招待メールを送信しました");
+    const lr=await api("list",{}); if(lr&&lr.emps) EMPS=lr.emps;
+    renderList();
+    openEmp(id);                                // アカウント状態の表示を更新する
+  } finally { invitingFromDrawer=false; }
+}
+
 async function adminResetPw(id,email){
   if(!confirm(email+" にパスワード再設定メールを送ります。よろしいですか?")) return;
   const r=await api("adminReset",{id,email});
@@ -1328,8 +1356,9 @@ async function saveEmp(){
     closeDrawer();renderList();
     if(isNew && r.emp){
       toast("登録しました");
-      // 登録直後に招待送付を促す
-      setTimeout(()=>{ promptInviteAfterRegister(r.emp); },300);
+      // 登録直後に招待送付を促す。
+      // 遅延させると、その間に別の画面へ移ったとき確認が出ないまま流れてしまうので即座に出す。
+      promptInviteAfterRegister(r.emp);
     } else {
       toast("保存しました");
     }
@@ -1344,6 +1373,9 @@ function promptInviteAfterRegister(emp){
   if(!emp.email){ toast("メール未設定のため招待を送れません"); return; }
   if(confirm(emp.name+" さん（"+emp.email+"）に招待メールを送りますか?\nOKで招待を送信します。")){
     sendInviteTo(emp.email, emp.id);
+  } else {
+    // 送らなかった場合でも、あとから送れる場所を伝える
+    toast("招待は未送信です。従業員一覧からこの方を開いて送信できます");
   }
 }
 function openDrawer(){document.getElementById("overlay").classList.add("show");document.getElementById("drawer").classList.add("show");}
