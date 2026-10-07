@@ -200,7 +200,7 @@ tbody tr:hover{background:var(--green-bg)}
       <div class="field"><label>新しいパスワード</label><input id="invPw" type="password" placeholder="8文字以上" autocomplete="new-password">
         <div class="pw-hint">8文字以上。英字と数字を含めてください。</div></div>
       <div class="field"><label>パスワード（確認）</label><input id="invPw2" type="password" autocomplete="new-password"></div>
-      <button class="btn" onclick="doSetPassword()">設定して有効化</button>
+      <button class="btn" id="invBtn" onclick="doSetPassword()">設定して有効化</button>
       <div class="auth-foot"><button class="btn ghost" onclick="showLogin()">ログインに戻る</button></div>
     </div>
 
@@ -741,7 +741,14 @@ async function api(action, payload, _retry){
   // Apps Script は応答を別ドメインへ転送してから返す。この転送が応答しないまま
   // 長時間ぶら下がることがあるため、8秒で打ち切って即座にやり直す。
   const ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(()=>ctrl.abort(), 8000) : null;
+  // 書き込み系はシートへの更新が複数走るため8秒では足りないことがある。
+  // 途中で打ち切ると「失敗表示なのにサーバーでは成功済み」という一番やりにくい状態になるので、
+  // 読み取りは8秒、書き込みは25秒まで待つ。
+  const SLOW = ["setPassword","save","saveMe","sendInvite","sendInviteBulk","changePassword",
+                "adminReset","hardDelete","issueExitToken","sendExitSurvey","submitExit",
+                "masterAdd","masterRename","masterDelete"];
+  const limit = SLOW.indexOf(action) >= 0 ? 25000 : 8000;
+  const timer = ctrl ? setTimeout(()=>ctrl.abort(), limit) : null;
   try{
     const opt = {method:"POST",redirect:"follow",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
@@ -788,10 +795,28 @@ async function showInvite(token){
   document.getElementById("invEmail").value="";
   document.getElementById("invEmail").dataset.token=token;
   // 本番: トークンから招待先メールを取得して自動入力(なりすまし防止の照合はサーバー側で実施)
+  const btn=document.getElementById("invBtn");
+  if(btn){btn.disabled=false;btn.textContent="設定して有効化";}
+  settingPw=false;
   if(GAS_ENDPOINT){
     const r = await api("acceptInvite",{token});
     if(r && r.ok && r.email){ document.getElementById("invEmail").value=r.email; }
-    else if(r && !r.ok){ authMsg("inviteMsg","err",r.error||"招待リンクが無効です"); }
+    else if(r && !r.ok){
+      authMsg("inviteMsg","err",r.error||"招待リンクが無効です");
+      // 使えないリンクで入力させても無駄なので、入力欄とボタンを閉じる
+      ["invEmail","invPw","invPw2"].forEach(id=>{
+        const el=document.getElementById(id); if(el){el.value="";el.disabled=true;}
+      });
+      if(btn){btn.disabled=true;}
+      // すでに設定済みなら、そのままログイン画面へ案内する
+      if(r.reason==="accepted"){
+        setTimeout(()=>{
+          showLogin();
+          if(r.email) document.getElementById("loginEmail").value=r.email;
+          authMsg("loginMsg","ok","パスワードはすでに設定済みです。ログインしてください。");
+        },2500);
+      }
+    }
   }
 }
 function flip(id){["loginForm","inviteForm","forgotForm"].forEach(f=>document.getElementById(f).classList.add("hidden"));
@@ -804,16 +829,40 @@ async function doLogin(){
   if(!r.ok){return authMsg("loginMsg","err",r.error);}
   saveSession(r.session); enterApp();
 }
+// 招待トークンは一度使うと無効になる。ボタンを二度押すと
+// 1回目は成功・2回目が「無効か期限切れ」になり、成功表示が赤いエラーで上書きされてしまう。
+// 送信中は押せないようにして、二度目を発生させない。
+let settingPw=false;
 async function doSetPassword(){
+  if(settingPw) return;
   const pw=val("invPw"),pw2=val("invPw2"),email=val("invEmail").trim().toLowerCase();
   if(!email||!/.+@.+\..+/.test(email)) return authMsg("inviteMsg","err","正しいメールアドレスを入力してください");
   if(pw.length<8) return authMsg("inviteMsg","err","パスワードは8文字以上にしてください");
   if(!/[a-zA-Z]/.test(pw)||!/[0-9]/.test(pw)) return authMsg("inviteMsg","err","英字と数字を含めてください");
   if(pw!==pw2) return authMsg("inviteMsg","err","確認用パスワードが一致しません");
-  const r=await api("setPassword",{token:document.getElementById("invEmail").dataset.token,email,pw});
-  if(!r.ok) return authMsg("inviteMsg","err",r.error||"設定に失敗しました");
-  authMsg("inviteMsg","ok","設定が完了しました。ログインしてください。");
-  setTimeout(()=>{showLogin();document.getElementById("loginEmail").value=email;},1200);
+  const btn=document.getElementById("invBtn");
+  settingPw=true;
+  if(btn){btn.disabled=true;btn.textContent="設定中…";}
+  try{
+    const r=await api("setPassword",{token:document.getElementById("invEmail").dataset.token,email,pw});
+    // 既に設定済み（二重送信・応答待ちのやり直しなど）。失敗ではないのでログインへ送る。
+    if(r && r.alreadySet){
+      authMsg("inviteMsg","ok",r.error||"パスワードはすでに設定済みです。そのままログインしてください。");
+      setTimeout(()=>{showLogin();document.getElementById("loginEmail").value=(r.email||email);},1500);
+      return;
+    }
+    if(!r.ok){
+      if(btn){btn.disabled=false;btn.textContent="設定して有効化";}
+      settingPw=false;
+      return authMsg("inviteMsg","err",r.error||"設定に失敗しました");
+    }
+    authMsg("inviteMsg","ok","設定が完了しました。ログインしてください。");
+    setTimeout(()=>{showLogin();document.getElementById("loginEmail").value=email;},1200);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent="設定して有効化";}
+    settingPw=false;
+    authMsg("inviteMsg","err","設定に失敗しました: "+(e&&e.message?e.message:"unknown"));
+  }
 }
 async function doForgot(){
   const email=val("fgEmail").trim().toLowerCase();
