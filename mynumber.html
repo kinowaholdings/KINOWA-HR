@@ -43,6 +43,12 @@ th{font-size:11.5px;color:var(--sub);border-bottom:1px solid var(--ink);white-sp
 .num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:17px;letter-spacing:.12em;font-weight:700}
 .hidden{display:none}
 .foot{font-size:11.5px;color:var(--sub);text-align:center;margin-top:28px;line-height:1.9}
+/* 利用目的の明示（個人情報保護法第21条・番号法）。本人が読む前提の囲み */
+.purpose{border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:12.5px;line-height:1.85;margin-bottom:18px}
+.purpose .t{font-weight:700;margin-bottom:7px;font-size:13px}
+.purpose ul{margin:0;padding-left:1.2em}
+.purpose li{margin:2px 0}
+.purpose .note{margin-top:9px;color:var(--sub);font-size:11.5px}
 </style>
 </head>
 <body>
@@ -51,6 +57,18 @@ th{font-size:11.5px;color:var(--sub);border-bottom:1px solid var(--ink);white-sp
 <div class="wrap hidden" id="vForm">
   <h1>マイナンバーのご提出</h1>
   <p class="lead" id="fName"></p>
+  <div class="purpose">
+    <div class="t">個人番号の利用目的</div>
+    ご提出いただいた個人番号（ご本人・扶養されているご家族の分）は、次の事務にのみ利用します。
+    <ul>
+      <li>給与所得・退職所得の源泉徴収票作成事務</li>
+      <li>雇用保険届出事務</li>
+      <li>健康保険・厚生年金保険届出事務</li>
+      <li>国民年金第3号被保険者届出事務</li>
+      <li>労働者災害補償保険法に基づく請求に関する事務</li>
+    </ul>
+    <div class="note">上記以外の目的には利用しません。</div>
+  </div>
   <div class="notice">
     ご入力いただいた番号は暗号化して保管され、社会保険労務士が確認したのち<b>速やかに削除</b>されます。<br>
     会社の担当者が番号を見ることはありません。
